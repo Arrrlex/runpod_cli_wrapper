@@ -1,0 +1,51 @@
+[project]
+name = "runpod-cli-wrapper"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "python-dateutil>=2.9.0.post0",
+    "rich>=14.1.0",
+    "runpod>=1.7.13",
+    "typer>=0.16.0",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+    "ARG",  # flake8-unused-arguments
+    "SIM",  # flake8-simplify
+    "PLR",  # pylint refactor
+    "PLW",  # pylint warning
+    "RUF",  # ruff-specific rules
+]
+ignore = [
+    "E501",   # line too long, handled by formatter
+    "PLR0913", # too many arguments
+    "PLR2004", # magic value used in comparison
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ty]
+# ty configuration
+# ty is a lightweight type checker that focuses on speed and simplicity
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+skips = ["B101", "B601"]
