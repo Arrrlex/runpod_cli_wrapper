@@ -33,9 +33,33 @@ The workflow is roughly:
 1. Spin up a new pod using the runpod website
 2. `rp add <alias> <id>` to add the pod to your local setup
 3. `rp start <alias>` starts up the pod and runs your setup scripts (more on that below)
-4. `rp stop <alias>` stops the pod. Alternatively `rp stop <alias> --scheduled-at 19:00` or `rp stop <alias> --scheduled-in 2h` to schedule shutting down the pod
+4. `rp stop <alias>` stops the pod. Alternatively you can schedule shutting down a pod, see [Scheduling](#scheduling).
 
 The first time you run a `rp` command, it will ask you to provide your runpod API key. It will save this in `~/config/rp/runpod_api_key`. If you don't want this saved in plaintext locally, make sure that the `RUNPOD_API_KEY` env var is set when you run `rp`.
+
+### Scheduling
+
+You can schedule pod shutdowns for later using the `--schedule-at` or `--schedule-in` options with the `stop` command:
+
+```bash
+# Schedule shutdown at a specific time
+rp stop my-pod --schedule-at "22:00"
+rp stop my-pod --schedule-at "2025-01-03 09:30"
+rp stop my-pod --schedule-at "tomorrow 09:30"
+
+# Schedule shutdown after a duration
+rp stop my-pod --schedule-in "2h"
+rp stop my-pod --schedule-in "1d2h30m"
+```
+
+Manage your scheduled tasks with the `schedule` subcommands:
+
+```bash
+rp schedule list              # View all scheduled tasks
+rp schedule cancel <task-id>  # Cancel a specific task
+```
+
+On macOS, the tool automatically sets up a background scheduler using launchd to execute tasks when they're due.
 
 ## Configuration
 
