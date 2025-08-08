@@ -15,7 +15,7 @@ uv tool install https://github.com/Arrrlex/runpod_cli_wrapper.git
 To upgrade to the latest version:
 
 ```bash
-uv tool upgrade https://github.com/Arrrlex/runpod_cli_wrapper.git
+uv tool upgrade runpod-cli-wrapper
 ```
 
 ## Usage
