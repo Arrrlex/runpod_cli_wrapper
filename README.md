@@ -69,9 +69,3 @@ mkdir -p ~/.config/rp
 cp assets/example_setup_remote.sh ~/.config/rp/setup_remote.sh
 cp assets/example_setup_local.sh ~/.config/rp/setup_local.sh
 ```
-
-Make sure to make the scripts executable:
-
-```bash
-chmod +x ~/.config/rp/setup_remote.sh ~/.config/rp/setup_local.sh
-```
