@@ -872,7 +872,7 @@ def list_aliases():
     setup_runpod_api()
 
     table = Table(show_header=True, header_style="bold cyan")
-    table.add_column("Alias", style="white")
+    table.add_column("Alias", style="green")
     table.add_column("ID", style="magenta")
     table.add_column("Status", style="white")
 
@@ -994,7 +994,7 @@ def schedule_list():
     table = Table(show_header=True, header_style="bold cyan")
     table.add_column("ID", style="magenta")
     table.add_column("Action", style="white")
-    table.add_column("Alias", style="white")
+    table.add_column("Alias", style="green")
     table.add_column("When (local)", style="white")
     table.add_column("Status", style="white")
     for t in tasks:
