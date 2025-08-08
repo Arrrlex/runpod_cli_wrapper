@@ -1055,7 +1055,7 @@ def schedule_clear_completed():
         console.print("No completed tasks to remove.")
 
 
-if __name__ == "__main__":
+def main():
     # Auto-clear completed tasks before any command runs to keep schedule tidy
     with contextlib.suppress(Exception):
         # Ignore cleanup errors; should never block commands

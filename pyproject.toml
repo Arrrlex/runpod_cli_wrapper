@@ -11,6 +11,9 @@ dependencies = [
     "typer>=0.16.0",
 ]
 
+[project.scripts]
+rp = "runpod_cli_wrapper.main:main"
+
 [tool.ruff]
 line-length = 88
 target-version = "py313"
