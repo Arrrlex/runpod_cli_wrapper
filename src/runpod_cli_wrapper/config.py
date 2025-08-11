@@ -1,3 +1,10 @@
+"""
+Configuration utilities for the RunPod CLI wrapper.
+
+This module provides configuration constants and utilities for the RunPod CLI
+wrapper, including paths to configuration files and directories.
+"""
+
 from pathlib import Path
 
 # --- CONFIGURATION ---

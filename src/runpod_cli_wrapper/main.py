@@ -1,3 +1,11 @@
+"""
+Main entry point for the RunPod CLI wrapper.
+
+This module provides the main application entry point and command-line interface
+for the RunPod CLI wrapper. It includes commands for managing aliases, pods,
+and scheduling tasks.
+"""
+
 import contextlib
 import getpass
 import os

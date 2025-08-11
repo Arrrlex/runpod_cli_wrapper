@@ -1,3 +1,11 @@
+"""
+Scheduling utilities for the RunPod CLI wrapper.
+
+This module provides functionality for managing scheduled tasks, including loading,
+saving, and clearing completed tasks. It includes support for macOS launchd
+agents to run scheduled tasks.
+"""
+
 import contextlib
 import json
 import os
