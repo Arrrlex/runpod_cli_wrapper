@@ -301,12 +301,12 @@ def update_ssh_config(
     _write_ssh_config_lines(new_lines)
 
 
-def run_local_command(command_list):
+def run_local_command(command_list, **env_vars):
     """Runs a local command, waits for it to complete, and prints the result."""
     typer.echo(f"-> Running: {' '.join(command_list)}")
     try:
         result = subprocess.run(
-            command_list, check=True, capture_output=True, text=True
+            command_list, check=True, capture_output=True, text=True, env=env_vars
         )
         if result.stdout:
             typer.echo(result.stdout.strip())
@@ -726,8 +726,11 @@ def _run_setup_scripts(host_alias: str) -> None:
     if LOCAL_SETUP_FILE.exists():
         console.print("⚙️  Running local setup…")
         # Run the inline shell script through bash so that shell expansions (e.g. ~) work.
-        local_setup_script = LOCAL_SETUP_FILE.read_text().format(host=host_alias)
-        run_local_command(["bash", "-lc", local_setup_script])
+        local_setup_script = LOCAL_SETUP_FILE.read_text()
+        run_local_command(
+            ["bash", "-lc", local_setup_script],
+            POD_HOST=host_alias,
+        )
 
     if REMOTE_SETUP_FILE.exists():
         console.print("⚙️  Running remote setup via scp…")

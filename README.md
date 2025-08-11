@@ -70,7 +70,7 @@ The CLI tool uses configuration files stored in `~/.config/rp/` to customize the
 Configure the tool by creating two setup scripts:
 
 - **`~/.config/rp/setup_remote.sh`** - Script that runs on the remote pod during startup
-- **`~/.config/rp/setup_local.sh`** - Script that runs locally when connecting to a pod. This will auto-expand `{host}` to the hostname of the pod.
+- **`~/.config/rp/setup_local.sh`** - Script that runs locally when connecting to a pod. This will have access to the env var `$POD_HOST`.
 
 ### Example Configuration Files
 
