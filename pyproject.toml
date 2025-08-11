@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "python-dateutil>=2.9.0.post0",
+    "pydantic>=2.0",
     "rich>=14.1.0",
     "runpod>=1.7.13",
     "typer>=0.16.0",
@@ -17,6 +18,15 @@ build-backend = "setuptools.build_meta"
 
 [project.scripts]
 rp = "runpod_cli_wrapper.main:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "pytest-mock>=3.10",
+    "factory-boy>=3.3",
+    "pydantic>=2.0",
+]
 
 [tool.ruff]
 line-length = 88
@@ -59,3 +69,8 @@ skips = ["B101", "B601"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.12.8",
+]
