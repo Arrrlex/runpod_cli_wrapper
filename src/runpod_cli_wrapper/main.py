@@ -726,9 +726,8 @@ def _run_setup_scripts(host_alias: str) -> None:
     if LOCAL_SETUP_FILE.exists():
         console.print("⚙️  Running local setup…")
         # Run the inline shell script through bash so that shell expansions (e.g. ~) work.
-        local_setup_script = LOCAL_SETUP_FILE.read_text()
         run_local_command(
-            ["bash", "-lc", local_setup_script],
+            ["bash", str(LOCAL_SETUP_FILE)],
             POD_HOST=host_alias,
         )
 
@@ -1069,3 +1068,7 @@ def main():
     # Mount schedule sub-app
     app.add_typer(schedule_app, name="schedule")
     app()
+
+
+if __name__ == "__main__":
+    main()
