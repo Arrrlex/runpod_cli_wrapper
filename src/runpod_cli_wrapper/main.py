@@ -14,37 +14,39 @@ from pathlib import Path
 
 import runpod
 import typer
-from dateutil import parser as date_parser
 from dateutil import tz
-from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.table import Table
 from rich.text import Text
 
-# --- CONFIGURATION ---
-# Location to store alias→pod_id mappings
-CONFIG_DIR = Path.home() / ".config" / "rp"
-POD_CONFIG_FILE = CONFIG_DIR / "pods.json"
-API_KEY_FILE = CONFIG_DIR / "runpod_api_key"
-REMOTE_SETUP_FILE = CONFIG_DIR / "setup_remote.sh"
-LOCAL_SETUP_FILE = CONFIG_DIR / "setup_local.sh"
-
-# The full path to your SSH config file.
-SSH_CONFIG_FILE = Path.home() / ".ssh" / "config"
-
-# --- END CONFIGURATION ---
-
-# Scheduler storage and macOS launchd integration
-SCHEDULE_FILE = CONFIG_DIR / "schedule.json"
-LAUNCH_AGENTS_DIR = Path.home() / "Library" / "LaunchAgents"
-LAUNCHD_LABEL = "com.rp.scheduler"
-LAUNCHD_PLIST = LAUNCH_AGENTS_DIR / f"{LAUNCHD_LABEL}.plist"
-LOGS_DIR = Path.home() / "Library" / "Logs"
-SCHEDULER_LOG_FILE = LOGS_DIR / "rp-scheduler.log"
+from .config import (
+    console,
+    determine_pod_status,
+    load_pod_configs,
+    save_pod_configs,
+    setup_runpod_api,
+    validate_host_alias,
+)
+from .pods import (
+    _extract_ssh_info,
+    _generate_alias_from_template,
+    _run_setup_scripts,
+    deploy_from_template,
+    start_pod,
+)
+from .scheduler import (
+    ensure_launchd_scheduler_installed as _ensure_launchd_scheduler_installed,
+)
+from .scheduler import (
+    parse_duration_to_seconds,
+    parse_schedule_at,
+    schedule_app,
+    schedule_task_stop,
+)
+from .ssh_utils import prune_rp_managed_blocks, remove_ssh_host_block, update_ssh_config
+from .templates import derive_template_from_pod, load_templates, save_templates
 
 app = typer.Typer(help="RunPod utility for starting and stopping pods")
-console = Console()
-schedule_app = typer.Typer(help="Manage scheduled tasks")
+template_app = typer.Typer(help="Manage deployment templates")
 
 
 def setup_runpod_api():
@@ -101,26 +103,27 @@ def ensure_config_dir_exists() -> None:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def load_pod_configs() -> dict:
-    """Load alias→pod_id mappings from POD_CONFIG_FILE; return empty dict if missing or invalid."""
-    try:
-        with POD_CONFIG_FILE.open("r") as f:
-            data = json.load(f)
-            if isinstance(data, dict):
-                return {str(k): str(v) for k, v in data.items()}
-            return {}
-    except FileNotFoundError:
-        return {}
-    except json.JSONDecodeError:
-        typer.echo(f"⚠️  Config file is not valid JSON: {POD_CONFIG_FILE}", err=True)
-        return {}
+def validate_host_alias(host_alias: str) -> str:
+    pod_configs = load_pod_configs()
+    if host_alias not in pod_configs:
+        typer.echo(f"❌ Unknown host alias: {host_alias}", err=True)
+        if pod_configs:
+            typer.echo("Available aliases:", err=True)
+            for alias in pod_configs:
+                typer.echo(f"  {alias}", err=True)
+        else:
+            typer.echo(
+                "No aliases configured. Add one with: rp add <alias> <pod_id>", err=True
+            )
+        raise typer.Exit(1)
+    return pod_configs[host_alias]
 
 
-def save_pod_configs(pod_configs: dict) -> None:
-    ensure_config_dir_exists()
-    with POD_CONFIG_FILE.open("w") as f:
-        json.dump(pod_configs, f, indent=2, sort_keys=True)
-        f.write("\n")
+def _coalesce(*values, default=None):
+    for v in values:
+        if v not in (None, ""):
+            return v
+    return default
 
 
 def determine_pod_status(pod_id: str) -> str:
@@ -762,6 +765,201 @@ def _run_setup_scripts(host_alias: str) -> None:
         console.print("✅ Remote setup complete.")
 
 
+def _generate_alias_from_template(template_alias: str) -> str:
+    suffix = uuid.uuid4().hex[:6]
+    return f"rp-{template_alias}-{suffix}"
+
+
+def _add_alias(alias: str, pod_id: str, *, force: bool = False) -> None:
+    pod_configs = load_pod_configs()
+    if alias in pod_configs and not force:
+        typer.echo(
+            f"❌ Alias '{alias}' already exists. Use --force or specify a different alias.",
+            err=True,
+        )
+        raise typer.Exit(1)
+    pod_configs[alias] = pod_id
+    save_pod_configs(pod_configs)
+
+
+@app.command()
+def deploy(
+    template_alias: str = typer.Argument(..., help="Template alias to deploy"),
+    alias: str | None = typer.Option(
+        None,
+        "--alias",
+        "-a",
+        help="SSH alias to save under (default: rp-<template>-<id>)",
+    ),
+    force: bool = typer.Option(
+        False, "--force", "-f", help="Overwrite existing alias if present"
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Print what would be deployed and exit"
+    ),
+):
+    """Deploy a new pod using a local template (Phase 1 minimal version).
+
+    Creates a pod using the RunPod SDK if available, waits for network, adds alias, updates SSH config, and runs setup scripts.
+    Fallbacks and health checks are Phase 2.
+    """
+    save_alias = alias or _generate_alias_from_template(template_alias)
+    res_alias, pod_id = deploy_from_template(
+        template_alias, save_alias, force=force, dry_run=dry_run
+    )
+    if not dry_run:
+        console.print(f"✅ Saved alias '[bold]{res_alias}[/bold]' -> {pod_id}")
+
+
+@template_app.command("list")
+def template_list():
+    """List template aliases."""
+    templates = load_templates()
+    if not templates:
+        console.print(
+            "[yellow]No templates configured. Use 'rp template derive' or 'rp template import'.[/yellow]"
+        )
+        return
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("Template", style="green")
+    table.add_column("Image", style="magenta")
+    table.add_column("GPU Cnt", style="white")
+    for name, spec in sorted(templates.items()):
+        image = (spec.get("container") or {}).get("imageName", "-")
+        gpu_cnt = str(spec.get("gpuCount", "-"))
+        table.add_row(name, image or "-", gpu_cnt)
+    console.print(table)
+
+
+@template_app.command("show")
+def template_show(
+    template_alias: str = typer.Argument(..., help="Template alias to show"),
+):
+    """Show a single template (pretty JSON)."""
+    templates = load_templates()
+    spec = templates.get(template_alias)
+    if not spec:
+        typer.echo(f"❌ Unknown template: {template_alias}", err=True)
+        raise typer.Exit(1)
+    console.print_json(data=spec)
+
+
+@template_app.command("delete")
+def template_delete(
+    template_alias: str = typer.Argument(..., help="Template alias to delete"),
+):
+    templates = load_templates()
+    if template_alias not in templates:
+        typer.echo(f"❌ Unknown template: {template_alias}", err=True)
+        raise typer.Exit(1)
+    templates.pop(template_alias)
+    save_templates(templates)
+    console.print(f"✅ Removed template '[bold]{template_alias}[/bold]'.")
+
+
+@template_app.command("export")
+def template_export(
+    template_alias: str = typer.Argument(..., help="Template alias to export"),
+    output: Path | None = typer.Option(
+        None, "--output", "-o", help="Output file path (default: ./template.json)"
+    ),
+):
+    templates = load_templates()
+    spec = templates.get(template_alias)
+    if not spec:
+        typer.echo(f"❌ Unknown template: {template_alias}", err=True)
+        raise typer.Exit(1)
+    if output is None:
+        output = Path.cwd() / "template.json"
+    with output.open("w") as f:
+        json.dump(spec, f, indent=2, sort_keys=True)
+        f.write("\n")
+    console.print(
+        f"✅ Exported template '[bold]{template_alias}[/bold]' to [dim]{output}[/dim]."
+    )
+
+
+@template_app.command("import")
+def template_import(
+    input_file: Path = typer.Argument(..., help="Path to a template JSON file"),
+    template_alias: str = typer.Option(
+        None,
+        "--alias",
+        "-a",
+        help="Name to save as (default: name from file or filename)",
+    ),
+    overwrite: bool = typer.Option(False, "--force", "-f", help="Overwrite if exists"),
+):
+    try:
+        with input_file.open("r") as f:
+            spec = json.load(f)
+    except Exception as e:
+        typer.echo(f"❌ Failed to read template: {e}", err=True)
+        raise typer.Exit(1) from e
+
+    name_from_spec = spec.get("name") if isinstance(spec, dict) else None
+    name_guess = template_alias or name_from_spec or input_file.stem
+    if not isinstance(spec, dict):
+        typer.echo("❌ Invalid template JSON (must be an object).", err=True)
+        raise typer.Exit(1)
+
+    templates = load_templates()
+    if name_guess in templates and not overwrite:
+        typer.echo(
+            f"❌ Template '{name_guess}' already exists. Use --force to overwrite.",
+            err=True,
+        )
+        raise typer.Exit(1)
+    spec["name"] = name_guess
+    templates[name_guess] = spec
+    save_templates(templates)
+    console.print(f"✅ Imported template as '[bold]{name_guess}[/bold]'.")
+
+
+@template_app.command("derive")
+def template_derive(
+    template_alias: str = typer.Argument(..., help="Alias for the new template"),
+    source: str = typer.Option(
+        ..., "--from", help="Existing pod id or rp host alias to derive from"
+    ),
+    include_env: bool = typer.Option(
+        True,
+        "--include-env/--no-include-env",
+        help="Include environment variables from the source pod",
+    ),
+    overwrite: bool = typer.Option(
+        False, "--force", "-f", help="Overwrite if alias already exists"
+    ),
+):
+    templates = load_templates()
+    if template_alias in templates and not overwrite:
+        typer.echo(
+            f"❌ Template '{template_alias}' already exists. Use --force to overwrite.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    setup_runpod_api()
+    pod_id = source
+    # Allow deriving from an rp alias
+    pod_configs = load_pod_configs()
+    if source in pod_configs:
+        pod_id = pod_configs[source]
+
+    try:
+        pod = runpod.get_pod(pod_id)
+    except Exception as e:
+        typer.echo(f"❌ Failed to fetch pod '{pod_id}': {e}", err=True)
+        raise typer.Exit(1) from e
+
+    tmpl = derive_template_from_pod(pod, template_alias, include_env=include_env)
+    templates[template_alias] = tmpl
+    save_templates(templates)
+    console.print(
+        f"✅ Derived template '[bold]{template_alias}[/bold]' from pod [bold]{pod_id}[/bold]."
+    )
+
+
 @app.command()
 def start(
     host_alias: str = typer.Argument(
@@ -769,17 +967,7 @@ def start(
     ),
 ):
     """Start and configure a RunPod instance."""
-    setup_runpod_api()
-    pod_id = validate_host_alias(host_alias)
-
-    pod_details = _resume_pod_and_wait(pod_id, host_alias)
-    ip_address, port_number = _extract_ssh_info(pod_details)
-
-    console.print(f"📝 Updating local SSH config file: [dim]{SSH_CONFIG_FILE}[/dim]")
-    update_ssh_config(host_alias, pod_id, ip_address, port_number)
-    console.print("✅ Local SSH config updated successfully.")
-
-    _run_setup_scripts(host_alias)
+    start_pod(host_alias)
 
 
 @app.command()
@@ -1063,6 +1251,7 @@ def main():
         if removed:
             # Keep this silent in normal output; uncomment to log cleanup
             pass
-    # Mount schedule sub-app
+    # Mount schedule and template sub-apps
     app.add_typer(schedule_app, name="schedule")
+    app.add_typer(template_app, name="template")
     app()
