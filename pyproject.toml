@@ -11,6 +11,10 @@ dependencies = [
     "typer>=0.16.0",
 ]
 
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project.scripts]
 rp = "runpod_cli_wrapper.main:main"
 
@@ -52,3 +56,6 @@ line-ending = "auto"
 [tool.bandit]
 exclude_dirs = ["tests"]
 skips = ["B101", "B601"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
