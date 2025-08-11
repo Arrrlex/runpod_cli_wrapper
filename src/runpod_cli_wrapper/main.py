@@ -54,6 +54,11 @@ app = typer.Typer(help="RunPod utility for starting and stopping pods")
 console = Console()
 schedule_app = typer.Typer(help="Manage scheduled tasks")
 
+# Default image for PyTorch 2.8 runtime
+DEFAULT_PYTORCH28_IMAGE = (
+    "runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04"
+)
+
 
 def setup_runpod_api():
     """Ensure RunPod API key is available.
@@ -159,6 +164,123 @@ def run_local_command_stream(command_list):
         raise typer.Exit(1) from e
 
 
+def _parse_gpu_arg(text: str) -> tuple[int, str]:
+    """Parse --gpu like '2xA100' → (2, 'A100')."""
+    s = (text or "").strip()
+    if not s:
+        raise typer.BadParameter("--gpu must be provided, e.g. 2xA100")
+    parts = s.lower().split("x", 1)
+    if len(parts) != 2 or not parts[0].isdigit():
+        raise typer.BadParameter("--gpu must be in the form NxTYPE, e.g. 2xA100")
+    count = int(parts[0])
+    if count < 1:
+        raise typer.BadParameter("GPU count must be >= 1")
+    model_key = parts[1].strip().upper()
+    if not model_key:
+        raise typer.BadParameter("GPU type is missing, e.g. A100")
+    return count, model_key
+
+
+def _parse_storage_arg(text: str) -> int:
+    """Parse --storage like '500GB' or '1TB' → integer GB."""
+    s = (text or "").strip().upper().replace(" ", "")
+    if not s:
+        raise typer.BadParameter("--storage must be provided, e.g. 500GB")
+    if s.endswith("GB"):
+        num = s[:-2]
+        factor = 1
+    elif s.endswith("GIB"):
+        num = s[:-3]
+        # Convert GiB to GB approximately
+        factor = 1.074
+    elif s.endswith("TB"):
+        num = s[:-2]
+        factor = 1000
+    elif s.endswith("TIB"):
+        num = s[:-3]
+        factor = 1024
+    else:
+        raise typer.BadParameter("--storage must end with GB/GiB/TB/TiB, e.g. 500GB")
+    try:
+        value = float(num)
+    except ValueError:
+        raise typer.BadParameter("--storage numeric part is invalid") from None
+    gb = int(round(value * factor))
+    if gb < 10:
+        raise typer.BadParameter("--storage must be at least 10GB")
+    return gb
+
+
+def _resolve_gpu_type_id(model_key: str) -> str:
+    """Return a RunPod GPU type id matching model_key (e.g., 'A100'), preferring highest VRAM."""
+    try:
+        gpus = runpod.get_gpus()
+    except Exception as e:
+        typer.echo(f"❌ Failed to list GPUs via SDK: {e}", err=True)
+        raise typer.Exit(1) from e
+
+    if not isinstance(gpus, list | tuple):
+        if isinstance(gpus, dict) and isinstance(gpus.get("gpus"), list):
+            gpus = gpus["gpus"]
+        else:
+            typer.echo("❌ Unexpected get_gpus() payload shape.", err=True)
+            raise typer.Exit(1)
+
+    model_upper = model_key.upper()
+    candidates: list[tuple[float, str]] = []
+    for item in gpus:
+        ident = str(item.get("id", ""))
+        name = str(item.get("displayName", ""))
+        mem = item.get("memoryInGb")
+        if model_upper in ident.upper() or model_upper in name.upper():
+            try:
+                mem_val = float(mem) if mem is not None else 0.0
+            except Exception:
+                mem_val = 0.0
+            candidates.append((mem_val, ident))
+
+    if not candidates:
+        typer.echo(
+            f"❌ Could not find GPU type matching '{model_key}'. Try a different value (e.g., A100, H100, L40S).",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    candidates.sort(key=lambda t: t[0], reverse=True)
+    return candidates[0][1]
+
+
+def _wait_for_pod_ready(pod_id: str) -> dict:
+    """Wait for a newly-created pod to be RUNNING with network info, return pod details."""
+    console.print("⏱️ Waiting for pod to be fully ready…")
+    pod_details = None
+    # Wait up to 10 minutes
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        TimeElapsedColumn(),
+        transient=True,
+        console=console,
+    ) as progress:
+        task = progress.add_task("Waiting for network…", total=None)
+        for i in range(120):  # 120 * 5s = 10 minutes
+            pod_details = runpod.get_pod(pod_id)
+            if pod_details and pod_details.get("runtime") is not None:
+                progress.update(
+                    task, description="Pod is RUNNING and network is active"
+                )
+                break
+            progress.update(task, description=f"Waiting… (attempt {i + 1}/120)")
+            time.sleep(5)
+        else:
+            typer.echo("❌ Timed out waiting for pod to become ready.", err=True)
+            raise typer.Exit(1)
+    console.print(
+        "✅ Pod is now [bold green]RUNNING[/bold green] and network is active."
+    )
+    return pod_details
+
+
 def stop_impl(host_alias: str) -> None:
     """Shared implementation to stop a pod and clean SSH block. Requires runpod to be set up."""
     pod_id = validate_host_alias(host_alias)
@@ -194,6 +316,62 @@ def stop_impl(host_alias: str) -> None:
                 err=True,
             )
             raise typer.Exit(1) from None
+
+
+def destroy_impl(host_alias: str) -> None:
+    """Terminate a pod and remove its alias and SSH config block.
+
+    - If pod is running, stop it first (best-effort)
+    - Terminate the pod
+    - Remove SSH config block for the alias
+    - Remove alias from local config
+    """
+    pod_id = validate_host_alias(host_alias)
+
+    console.print(
+        f"🔥 Destroying RunPod pod: [bold]{pod_id}[/bold] (alias: {host_alias})…"
+    )
+
+    # Best-effort stop first, but proceed on failure
+    with contextlib.suppress(Exception):
+        status = determine_pod_status(pod_id)
+        if status == "running":
+            console.print("⏹️  Pod is running; stopping before termination…")
+            runpod.stop_pod(pod_id)
+
+    # Terminate
+    try:
+        runpod.terminate_pod(pod_id)
+        console.print(f"✅ Terminated pod [bold]{pod_id}[/bold].")
+    except Exception as e:
+        reason = (str(e) or e.__class__.__name__).strip()
+        typer.echo(f"❌ Failed to terminate pod: {reason}", err=True)
+        raise typer.Exit(1) from e
+
+    # Clean SSH config
+    removed = remove_ssh_host_block(host_alias)
+    if removed:
+        console.print(f"🧹 Removed SSH config block for '[bold]{host_alias}[/bold]'")
+
+    # Remove alias mapping
+    pod_configs = load_pod_configs()
+    if host_alias in pod_configs:
+        _ = pod_configs.pop(host_alias, None)
+        save_pod_configs(pod_configs)
+        console.print(
+            f"🗑️  Removed alias '[bold]{host_alias}[/bold]' from local configuration."
+        )
+
+
+@app.command()
+def destroy(
+    host_alias: str = typer.Argument(
+        ..., help="SSH host alias for the pod (e.g., runpod-1, local-saes-1)"
+    ),
+):
+    """Terminate a pod, remove SSH config, and delete the alias mapping."""
+    setup_runpod_api()
+    destroy_impl(host_alias)
 
 
 @app.command()
@@ -343,6 +521,89 @@ def _run_setup_scripts(host_alias: str) -> None:
         # Clean up the local temporary script file
         local_script_path.unlink()
         console.print("✅ Remote setup complete.")
+
+
+@app.command()
+def create(
+    alias: str = typer.Argument(
+        ..., help="SSH host alias to assign (e.g., alexs-machine)"
+    ),
+    gpu: str = typer.Option(..., "--gpu", help="GPU spec like '2xA100'"),
+    storage: str = typer.Option(
+        ..., "--storage", help="Volume size like '500GB' or '1TB'"
+    ),
+    force: bool = typer.Option(
+        False, "--force", "-f", help="Overwrite alias if it exists"
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Show actions without creating"
+    ),
+):
+    """Create a new RunPod using PyTorch 2.8 image, add alias, wait for SSH, and run setup scripts."""
+    setup_runpod_api()
+
+    # Guard alias existence
+    pod_configs = load_pod_configs()
+    if alias in pod_configs and not force:
+        typer.echo(
+            f"❌ Alias '{alias}' already exists. Use --force to overwrite.", err=True
+        )
+        raise typer.Exit(1)
+
+    # Parse inputs
+    try:
+        gpu_count, model_key = _parse_gpu_arg(gpu)
+        volume_gb = _parse_storage_arg(storage)
+    except typer.BadParameter as e:
+        typer.echo(str(e), err=True)
+        raise typer.Exit(1) from e
+
+    gpu_type_id = _resolve_gpu_type_id(model_key)
+
+    console.print(
+        f"🚀 Creating pod '[bold]{alias}[/bold]': image=[dim]{DEFAULT_PYTORCH28_IMAGE}[/dim], GPU={gpu_count}x{model_key} (id={gpu_type_id}), volume={volume_gb}GB"
+    )
+
+    if dry_run:
+        console.print("[bold]DRY RUN[/bold] No changes were made.")
+        return
+
+    try:
+        created = runpod.create_pod(
+            name=alias,
+            image_name=DEFAULT_PYTORCH28_IMAGE,
+            gpu_type_id=gpu_type_id,
+            gpu_count=gpu_count,
+            volume_in_gb=volume_gb,
+            support_public_ip=True,
+            start_ssh=True,
+            ports="22/tcp,8888/http",
+        )
+    except Exception as e:
+        reason = (str(e) or e.__class__.__name__).strip()
+        typer.echo(f"❌ Failed to create pod: {reason}", err=True)
+        raise typer.Exit(1) from e
+
+    pod_id = created.get("id") if isinstance(created, dict) else None
+    if not pod_id:
+        typer.echo("❌ Could not determine created pod id from SDK response.", err=True)
+        raise typer.Exit(1)
+
+    # Persist alias → pod id mapping
+    pod_configs[alias] = pod_id
+    save_pod_configs(pod_configs)
+    console.print(f"✅ Saved alias '[bold]{alias}[/bold]' -> {pod_id}")
+
+    # Wait until ready and configure SSH
+    pod_details = _wait_for_pod_ready(pod_id)
+    ip_address, port_number = _extract_ssh_info(pod_details)
+
+    console.print(f"📝 Updating local SSH config file: [dim]{SSH_CONFIG_FILE}[/dim]")
+    update_ssh_config(alias, pod_id, ip_address, port_number)
+    console.print("✅ Local SSH config updated successfully.")
+
+    # Run setup scripts
+    _run_setup_scripts(alias)
 
 
 @app.command()
