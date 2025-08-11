@@ -136,6 +136,7 @@ class TestPodManager:
             gpu_type_id=gpu_id,
             gpu_count=1,
             volume_in_gb=10,  # Minimal storage
+            volume_mount_path="/workspace",
             support_public_ip=True,
             start_ssh=True,
             ports="22/tcp",

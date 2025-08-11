@@ -69,6 +69,7 @@ class RunPodAPIClient:
                 gpu_type_id=gpu_type_id,
                 gpu_count=gpu_count,
                 volume_in_gb=volume_in_gb,
+                volume_mount_path="/workspace",
                 support_public_ip=support_public_ip,
                 start_ssh=start_ssh,
                 ports=ports,
