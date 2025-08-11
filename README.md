@@ -1,6 +1,6 @@
 # RunPod CLI Wrapper
 
-This is a little wrapper around runpod's python API. It provides some neat things like scheduling pod shutdowns and running scripts automatically on starting a pod.
+This is a little wrapper around runpod's python API. It provides some neat things like scheduling pod shutdowns and running scripts automatically on starting/creating a pod.
 
 ## Installation
 
@@ -30,10 +30,11 @@ This will show you all available commands and options for managing your pods.
 
 The workflow is roughly:
 
-1. Spin up a new pod using the runpod website
-2. `rp add <alias> <id>` to add the pod to your local setup
-3. `rp start <alias>` starts up the pod and runs your setup scripts (more on that below)
-4. `rp stop <alias>` stops the pod. Alternatively you can schedule shutting down a pod, see [Scheduling](#scheduling).
+1. `rp create alex-ast-2 --gpu 2xH100 --storage 500gb` creates a pod and adds it to the list that `rp` manages
+2. For any pods that you created using the runpod website, `rp add <alias> <id>` adds it to `rp`'s local config
+3. `rp list` shows you all rp's managed pods and their status (running, stopped, or invalid if they don't exist)
+4. `rp stop <pod_id>` stops a pod. Alternatively you can schedule shutting down a pod, see [Scheduling](#scheduling).
+5. `rp destroy <pod_id>` terminates a pod (stopping it too if it's still running).
 
 The first time you run a `rp` command, it will ask you to provide your runpod API key. It will save this in `~/config/rp/runpod_api_key`. If you don't want this saved in plaintext locally, make sure that the `RUNPOD_API_KEY` env var is set when you run `rp`.
 

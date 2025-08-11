@@ -22,6 +22,7 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.table import Table
 from rich.text import Text
+from typer.core import TyperGroup
 
 from runpod_cli_wrapper.config import (
     API_KEY_FILE,
@@ -50,7 +51,19 @@ from runpod_cli_wrapper.ssh_config import (
     validate_host_alias,
 )
 
-app = typer.Typer(help="RunPod utility for starting and stopping pods")
+
+class OrderedGroup(TyperGroup):
+    def list_commands(self, _):
+        preferred = ["create", "destroy", "add"]
+        all_cmds = list(self.commands.keys())
+        rest = [c for c in all_cmds if c not in preferred]
+        # Keep remaining commands in their existing insertion order
+        return preferred + rest
+
+
+app = typer.Typer(
+    help="RunPod utility for starting and stopping pods", cls=OrderedGroup
+)
 console = Console()
 schedule_app = typer.Typer(help="Manage scheduled tasks")
 
@@ -376,13 +389,15 @@ def destroy(
 
 @app.command()
 def add(
-    alias: str = typer.Argument(..., help="Alias name to assign to a RunPod pod id"),
+    alias: str = typer.Argument(
+        ..., help="Alias name to assign to an existing RunPod pod id"
+    ),
     pod_id: str = typer.Argument(..., help="RunPod pod id (e.g., 89qgenjznh5t2j)"),
     force: bool = typer.Option(
         False, "--force", "-f", help="Overwrite if alias already exists"
     ),
 ):
-    """Add or update an alias → pod id mapping."""
+    """Add or update an existing RunPod pod."""
     pod_configs = load_pod_configs()
     if alias in pod_configs and not force:
         typer.echo(
