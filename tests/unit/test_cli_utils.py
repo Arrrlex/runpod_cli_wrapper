@@ -23,11 +23,22 @@ class TestParseGPUSpec:
         assert spec.count == 1
         assert spec.model == "H100"
 
+    def test_parse_gpu_model_only(self):
+        """Test parsing GPU model without count (defaults to 1)."""
+        spec = parse_gpu_spec("h100")
+        assert spec.count == 1
+        assert spec.model == "H100"
+
+        spec = parse_gpu_spec("A100")
+        assert spec.count == 1
+        assert spec.model == "A100"
+
+        spec = parse_gpu_spec("RTX4090")
+        assert spec.count == 1
+        assert spec.model == "RTX4090"
+
     def test_parse_invalid_gpu_format(self):
         """Test parsing invalid GPU format."""
-        with pytest.raises(typer.BadParameter):
-            parse_gpu_spec("invalid")
-
         with pytest.raises(typer.BadParameter):
             parse_gpu_spec("AxB100")  # non-numeric count
 
@@ -38,6 +49,13 @@ class TestParseGPUSpec:
         """Test parsing with missing model."""
         with pytest.raises(typer.BadParameter):
             parse_gpu_spec("2x")
+
+        # Test empty GPU model
+        with pytest.raises(typer.BadParameter):
+            parse_gpu_spec("")
+
+        with pytest.raises(typer.BadParameter):
+            parse_gpu_spec("   ")
 
 
 class TestParseStorageSpec:

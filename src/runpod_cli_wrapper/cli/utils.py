@@ -72,28 +72,39 @@ def handle_cli_error(error: Exception) -> None:
 
 
 def parse_gpu_spec(gpu_string: str) -> GPUSpec:
-    """Parse GPU specification from string like '2xA100'."""
-    try:
-        return GPUSpec.model_validate_json(
-            f'{{"count": {gpu_string[0]}, "model": "{gpu_string[2:]}"}}'
-        )
-    except Exception:
-        # Fallback to manual parsing
+    """Parse GPU specification from string like '2xA100' or 'h100' (defaults to 1)."""
+    # First check for NxTYPE format
+    if "x" in gpu_string.lower():
         parts = gpu_string.lower().split("x", 1)
-        if len(parts) != 2 or not parts[0].isdigit():
-            raise typer.BadParameter(
-                "--gpu must be in the form NxTYPE, e.g. 2xA100"
-            ) from None
+        if len(parts) == 2 and parts[0].isdigit():
+            count = int(parts[0])
+            if count < 1:
+                raise typer.BadParameter("GPU count must be >= 1") from None
 
-        count = int(parts[0])
-        if count < 1:
-            raise typer.BadParameter("GPU count must be >= 1") from None
+            model = parts[1].strip().upper()
+            if not model:
+                raise typer.BadParameter("GPU type is missing, e.g. A100") from None
 
-        model = parts[1].strip().upper()
+            return GPUSpec(count=count, model=model)
+        else:
+            # Contains 'x' but first part is not numeric - could be ambiguous
+            # If it looks like it's trying to be NxTYPE format but invalid, raise error
+            if len(parts) == 2 and len(parts[0]) == 1:
+                raise typer.BadParameter(
+                    "--gpu must be in the form NxTYPE (e.g. 2xA100) or just TYPE (e.g. h100)"
+                ) from None
+
+            # Otherwise treat as model name (e.g., "RTX4090")
+            model = gpu_string.strip().upper()
+            if not model:
+                raise typer.BadParameter("GPU type cannot be empty") from None
+            return GPUSpec(count=1, model=model)
+    else:
+        # No 'x', treat as GPU model without count (defaults to 1)
+        model = gpu_string.strip().upper()
         if not model:
-            raise typer.BadParameter("GPU type is missing, e.g. A100") from None
-
-        return GPUSpec(count=count, model=model)
+            raise typer.BadParameter("GPU type cannot be empty") from None
+        return GPUSpec(count=1, model=model)
 
 
 def parse_storage_spec(storage_string: str) -> int:
