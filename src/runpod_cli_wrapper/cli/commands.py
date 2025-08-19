@@ -57,7 +57,7 @@ def get_ssh_manager() -> SSHManager:
     return _ssh_manager
 
 
-def create_command(
+def create_command(  # noqa: PLR0915  # Function complexity acceptable for main command
     alias: str | None = None,
     gpu: str | None = None,
     storage: str | None = None,
@@ -111,6 +111,7 @@ def create_command(
                 progress.update(task, description="Pod created successfully")
 
             final_alias = pod.alias
+            template_used = template
         else:
             # Use direct specification mode - at this point we know these are not None due to validation
             assert alias is not None
@@ -151,6 +152,10 @@ def create_command(
                 progress.update(task, description="Pod created successfully")
 
             final_alias = alias
+            template_used = None
+            # Store for summary
+            final_gpu_spec = gpu_spec
+            final_volume_gb = volume_gb
 
         # At this point final_alias should never be None
         assert final_alias is not None
@@ -172,6 +177,16 @@ def create_command(
 
         # Run setup scripts
         run_setup_scripts(final_alias)
+
+        # Print summary
+        if template_used:
+            console.print(
+                f"🎉 Created pod '[bold green]{final_alias}[/bold green]' from template '[bold blue]{template_used}[/bold blue]'"
+            )
+        else:
+            console.print(
+                f"🎉 Created pod '[bold green]{final_alias}[/bold green]' with [bold yellow]{final_gpu_spec}[/bold yellow] GPU and [bold yellow]{final_volume_gb}GB[/bold yellow] storage"
+            )
 
     except Exception as e:
         handle_cli_error(e)

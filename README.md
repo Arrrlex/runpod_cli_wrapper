@@ -1,6 +1,6 @@
 # RunPod CLI Wrapper
 
-This is a little wrapper around runpod's python API. It provides some neat things like scheduling pod shutdowns and running scripts automatically on starting/creating a pod.
+This is a little wrapper around runpod's python API. It provides some neat things like scheduling pod shutdowns, running scripts automatically on starting/creating a pod, and managing pod templates for quick deployment.
 
 ## Installation
 
@@ -30,13 +30,36 @@ This will show you all available commands and options for managing your pods.
 
 The workflow is roughly:
 
-1. `rp create alex-ast-2 --gpu 2xH100 --storage 500gb` creates a pod and adds it to the list that `rp` manages
-2. For any pods that you created using the runpod website, `rp add <alias> <id>` adds it to `rp`'s local config
-3. `rp list` shows you all rp's managed pods and their status (running, stopped, or invalid if they don't exist)
-4. `rp stop <pod_id>` stops a pod. Alternatively you can schedule shutting down a pod, see [Scheduling](#scheduling).
-5. `rp destroy <pod_id>` terminates a pod (stopping it too if it's still running).
+1. **Create pods directly**: `rp create alex-ast-2 --gpu 2xH100 --storage 500GB` creates a pod and adds it to the list that `rp` manages
+2. **Or use templates for repeated deployments**:
+   - Create a template: `rp template create my-template "my-pod-{i}" --gpu 2xH100 --storage 500GB`
+   - Use template: `rp create --template my-template` (automatically creates `my-pod-1`, `my-pod-2`, etc.)
+3. **Add existing pods**: For any pods created using the RunPod website, `rp add <alias> <id>` adds it to `rp`'s local config
+4. **List pods**: `rp list` shows you all rp's managed pods and their status (running, stopped, or invalid if they don't exist)
+5. **Stop pods**: `rp stop <alias>` stops a pod. Alternatively you can schedule shutting down a pod, see [Scheduling](#scheduling)
+6. **Destroy pods**: `rp destroy <alias>` terminates a pod (stopping it too if it's still running)
 
-The first time you run a `rp` command, it will ask you to provide your runpod API key. It will save this in `~/config/rp/runpod_api_key`. If you don't want this saved in plaintext locally, make sure that the `RUNPOD_API_KEY` env var is set when you run `rp`.
+The first time you run a `rp` command, it will ask you to provide your runpod API key. It will save this in `~/.config/rp/runpod_api_key`. If you don't want this saved in plaintext locally, make sure that the `RUNPOD_API_KEY` env var is set when you run `rp`.
+
+### Pod Templates
+
+Templates let you save common pod configurations and reuse them with automatic alias numbering:
+
+```bash
+# Create a template
+rp template create ml-training "ml-training-{i}" --gpu 2xA100 --storage 1TB
+
+# Use the template (creates ml-training-1, ml-training-2, etc.)
+rp create --template ml-training
+
+# List all templates
+rp template list
+
+# Delete a template
+rp template delete ml-training
+```
+
+Templates automatically find the lowest available number for the `{i}` placeholder, so if `ml-training-1` exists, the next pod will be `ml-training-2`.
 
 ### Scheduling
 
@@ -58,6 +81,7 @@ Manage your scheduled tasks with the `schedule` subcommands:
 ```bash
 rp schedule list              # View all scheduled tasks
 rp schedule cancel <task-id>  # Cancel a specific task
+rp schedule clean             # Remove completed and cancelled tasks
 ```
 
 On macOS, the tool automatically sets up a background scheduler using launchd to execute tasks when they're due.
