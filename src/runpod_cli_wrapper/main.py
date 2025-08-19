@@ -23,6 +23,9 @@ from runpod_cli_wrapper.cli.commands import (
     scheduler_tick_command,
     start_command,
     stop_command,
+    template_create_command,
+    template_delete_command,
+    template_list_command,
 )
 from runpod_cli_wrapper.core.scheduler import Scheduler
 
@@ -45,15 +48,21 @@ app = typer.Typer(
 # Schedule sub-application
 schedule_app = typer.Typer(help="Manage scheduled tasks")
 
+# Template sub-application
+template_app = typer.Typer(help="Manage pod templates")
+
 
 @app.command()
 def create(
     alias: str = typer.Argument(
-        ..., help="SSH host alias to assign (e.g., alexs-machine)"
+        None, help="SSH host alias to assign (e.g., alexs-machine)"
     ),
-    gpu: str = typer.Option(..., "--gpu", help="GPU spec like '2xA100'"),
+    gpu: str = typer.Option(None, "--gpu", help="GPU spec like '2xA100'"),
     storage: str = typer.Option(
-        ..., "--storage", help="Volume size like '500GB' or '1TB'"
+        None, "--storage", help="Volume size like '500GB' or '1TB'"
+    ),
+    template: str = typer.Option(
+        None, "--template", help="Use a pod template (e.g., 'alex-ast')"
     ),
     force: bool = typer.Option(
         False, "--force", "-f", help="Overwrite alias if it exists"
@@ -63,7 +72,7 @@ def create(
     ),
 ):
     """Create a new RunPod using PyTorch 2.8 image, add alias, wait for SSH, and run setup scripts."""
-    create_command(alias, gpu, storage, force, dry_run)
+    create_command(alias, gpu, storage, template, force, dry_run)
 
 
 @app.command()
@@ -166,6 +175,43 @@ def schedule_clear_completed():
     schedule_clear_completed_command()
 
 
+@template_app.command("create")
+def template_create(
+    identifier: str = typer.Argument(
+        ..., help="Template identifier (e.g., 'alex-ast')"
+    ),
+    alias_template: str = typer.Argument(
+        ..., help="Alias template with {i} placeholder (e.g., 'alex-ast-{i}')"
+    ),
+    gpu: str = typer.Option(..., "--gpu", help="GPU spec like '2xA100'"),
+    storage: str = typer.Option(
+        ..., "--storage", help="Volume size like '500GB' or '1TB'"
+    ),
+    force: bool = typer.Option(
+        False, "--force", "-f", help="Overwrite template if it exists"
+    ),
+):
+    """Create a new pod template."""
+    template_create_command(identifier, alias_template, gpu, storage, force)
+
+
+@template_app.command("list")
+def template_list():
+    """List all pod templates."""
+    template_list_command()
+
+
+@template_app.command("delete")
+def template_delete(
+    identifier: str = typer.Argument(..., help="Template identifier to delete"),
+    missing_ok: bool = typer.Option(
+        False, "--missing-ok", help="Do not error if template is missing"
+    ),
+):
+    """Delete a pod template."""
+    template_delete_command(identifier, missing_ok)
+
+
 @app.command("scheduler-tick")
 def scheduler_tick():
     """Execute due scheduled tasks (intended to be run by launchd every minute)."""
@@ -180,8 +226,9 @@ def main():
         scheduler.clear_completed_tasks()
         # Keep this silent in normal output
 
-    # Mount schedule sub-app
+    # Mount sub-apps
     app.add_typer(schedule_app, name="schedule")
+    app.add_typer(template_app, name="template")
     app()
 
 

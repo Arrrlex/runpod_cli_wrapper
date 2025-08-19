@@ -7,10 +7,12 @@ These tests verify model validation, serialization, and business logic.
 import pytest
 
 from runpod_cli_wrapper.core.models import (
+    AppConfig,
     GPUSpec,
     Pod,
     PodCreateRequest,
     PodStatus,
+    PodTemplate,
     ScheduleTask,
     SSHConfig,
     TaskStatus,
@@ -198,3 +200,129 @@ class TestPodCreateRequest:
                 gpu_spec=gpu_spec,
                 volume_gb=5,  # below minimum
             )
+
+
+class TestPodTemplate:
+    """Test pod template model."""
+
+    def test_valid_template(self):
+        """Test creating a valid pod template."""
+        template = PodTemplate(
+            identifier="alex-ast",
+            alias_template="alex-ast-{i}",
+            gpu_spec="2xA100",
+            storage_spec="500GB",
+        )
+
+        assert template.identifier == "alex-ast"
+        assert template.alias_template == "alex-ast-{i}"
+        assert template.gpu_spec == "2xA100"
+        assert template.storage_spec == "500GB"
+
+    def test_missing_placeholder_validation(self):
+        """Test validation fails when alias template is missing {i} placeholder."""
+        with pytest.raises(
+            ValueError, match="Alias template must contain '{i}' placeholder"
+        ):
+            PodTemplate(
+                identifier="alex-ast",
+                alias_template="alex-ast",  # missing {i}
+                gpu_spec="2xA100",
+                storage_spec="500GB",
+            )
+
+
+class TestAppConfig:
+    """Test application configuration model."""
+
+    def test_empty_config(self):
+        """Test creating empty configuration."""
+        config = AppConfig()
+
+        assert config.aliases == {}
+        assert config.scheduled_tasks == []
+        assert config.pod_templates == {}
+
+    def test_add_template(self):
+        """Test adding a pod template."""
+        config = AppConfig()
+        template = PodTemplate(
+            identifier="test-template",
+            alias_template="test-{i}",
+            gpu_spec="1xA100",
+            storage_spec="100GB",
+        )
+
+        # Should succeed initially
+        assert config.add_template(template)
+        assert "test-template" in config.pod_templates
+
+        # Should fail without force=True
+        assert not config.add_template(template)
+
+        # Should succeed with force=True
+        assert config.add_template(template, force=True)
+
+    def test_get_template(self):
+        """Test retrieving a pod template."""
+        config = AppConfig()
+        template = PodTemplate(
+            identifier="test-template",
+            alias_template="test-{i}",
+            gpu_spec="1xA100",
+            storage_spec="100GB",
+        )
+
+        config.add_template(template)
+
+        retrieved = config.get_template("test-template")
+        assert retrieved is not None
+        assert retrieved.identifier == "test-template"
+
+        # Non-existent template
+        assert config.get_template("nonexistent") is None
+
+    def test_remove_template(self):
+        """Test removing a pod template."""
+        config = AppConfig()
+        template = PodTemplate(
+            identifier="test-template",
+            alias_template="test-{i}",
+            gpu_spec="1xA100",
+            storage_spec="100GB",
+        )
+
+        config.add_template(template)
+
+        # Should return the removed template
+        removed = config.remove_template("test-template")
+        assert removed is not None
+        assert removed.identifier == "test-template"
+        assert "test-template" not in config.pod_templates
+
+        # Should return None for non-existent template
+        assert config.remove_template("nonexistent") is None
+
+    def test_find_next_alias_index(self):
+        """Test finding the next available alias index."""
+        config = AppConfig()
+
+        # No existing aliases - should return 1
+        assert config.find_next_alias_index("test-{i}") == 1
+
+        # Add some aliases
+        config.aliases["test-1"] = "pod1"
+        config.aliases["test-3"] = "pod3"
+
+        # Should return 2 (lowest available)
+        assert config.find_next_alias_index("test-{i}") == 2
+
+        # Add test-2
+        config.aliases["test-2"] = "pod2"
+
+        # Should now return 4
+        assert config.find_next_alias_index("test-{i}") == 4
+
+        # Test with different template format
+        config.aliases["prefix-1-suffix"] = "pod4"
+        assert config.find_next_alias_index("prefix-{i}-suffix") == 2

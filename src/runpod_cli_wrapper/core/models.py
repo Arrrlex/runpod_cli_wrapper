@@ -175,6 +175,26 @@ class PodCreateRequest(BaseModel):
     ports: str = Field(default="22/tcp,8888/http", description="Port configuration")
 
 
+class PodTemplate(BaseModel):
+    """Template for creating pods with predefined configurations."""
+
+    identifier: str = Field(description="Unique template identifier (e.g., 'alex-ast')")
+    alias_template: str = Field(
+        description="Alias template with {i} placeholder (e.g., 'alex-ast-{i}')"
+    )
+    gpu_spec: str = Field(description="GPU specification string (e.g., '2xA100')")
+    storage_spec: str = Field(
+        description="Storage specification string (e.g., '500GB')"
+    )
+
+    @field_validator("alias_template")
+    @classmethod
+    def validate_alias_template(cls, v):
+        if "{i}" not in v:
+            raise ValueError("Alias template must contain '{i}' placeholder")
+        return v
+
+
 class AppConfig(BaseModel):
     """Application configuration and state."""
 
@@ -183,6 +203,9 @@ class AppConfig(BaseModel):
     )
     scheduled_tasks: list[ScheduleTask] = Field(
         default_factory=list, description="Scheduled tasks"
+    )
+    pod_templates: dict[str, PodTemplate] = Field(
+        default_factory=dict, description="Pod templates by identifier"
     )
 
     def add_alias(self, alias: str, pod_id: str, force: bool = False) -> bool:
@@ -215,3 +238,27 @@ class AppConfig(BaseModel):
             t for t in self.scheduled_tasks if t.status != TaskStatus.COMPLETED
         ]
         return original_count - len(self.scheduled_tasks)
+
+    def add_template(self, template: PodTemplate, force: bool = False) -> bool:
+        """Add or update a pod template."""
+        if template.identifier in self.pod_templates and not force:
+            return False
+        self.pod_templates[template.identifier] = template
+        return True
+
+    def get_template(self, identifier: str) -> PodTemplate | None:
+        """Get a pod template by identifier."""
+        return self.pod_templates.get(identifier)
+
+    def remove_template(self, identifier: str) -> PodTemplate | None:
+        """Remove a template, return the template if it existed."""
+        return self.pod_templates.pop(identifier, None)
+
+    def find_next_alias_index(self, alias_template: str) -> int:
+        """Find the lowest i ≥ 1 where alias_template.format(i=i) doesn't exist."""
+        i = 1
+        while True:
+            candidate_alias = alias_template.format(i=i)
+            if candidate_alias not in self.aliases:
+                return i
+            i += 1

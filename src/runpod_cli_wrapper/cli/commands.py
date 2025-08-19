@@ -20,7 +20,7 @@ from runpod_cli_wrapper.cli.utils import (
     run_setup_scripts,
     setup_api_client,
 )
-from runpod_cli_wrapper.core.models import PodCreateRequest, SSHConfig
+from runpod_cli_wrapper.core.models import PodCreateRequest, PodTemplate, SSHConfig
 from runpod_cli_wrapper.core.pod_manager import PodManager
 from runpod_cli_wrapper.core.scheduler import Scheduler
 from runpod_cli_wrapper.core.ssh_manager import SSHManager
@@ -58,56 +58,110 @@ def get_ssh_manager() -> SSHManager:
 
 
 def create_command(
-    alias: str,
-    gpu: str,
-    storage: str,
+    alias: str | None = None,
+    gpu: str | None = None,
+    storage: str | None = None,
+    template: str | None = None,
     force: bool = False,
     dry_run: bool = False,
 ) -> None:
     """Create a new RunPod using PyTorch 2.8 image."""
     try:
-        gpu_spec = parse_gpu_spec(gpu)
-        volume_gb = parse_storage_spec(storage)
-
-        request = PodCreateRequest(
-            alias=alias,
-            gpu_spec=gpu_spec,
-            volume_gb=volume_gb,
-            force=force,
-            dry_run=dry_run,
-        )
-
         pod_manager = get_pod_manager()
 
-        console.print(
-            f"🚀 Creating pod '[bold]{alias}[/bold]': "
-            f"image=[dim]{request.image}[/dim], "
-            f"GPU={gpu_spec}, volume={volume_gb}GB"
-        )
+        # Validate arguments
+        if template and (alias or gpu or storage):
+            raise ValueError(
+                "Cannot specify --template with individual parameters (--alias, --gpu, --storage)"
+            )
 
-        if dry_run:
-            console.print("[bold]DRY RUN[/bold] No changes were made.")
-            return
+        if not template and not (alias and gpu and storage):
+            raise ValueError(
+                "Must specify either --template or all of (--alias, --gpu, --storage)"
+            )
 
-        # Create pod with progress indication
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            TimeElapsedColumn(),
-            transient=True,
-            console=console,
-        ) as progress:
-            task = progress.add_task("Creating pod…", total=None)
-            pod = pod_manager.create_pod(request)
-            progress.update(task, description="Pod created successfully")
+        if template:
+            # Use template mode
+            console.print(f"🚀 Creating pod from template '[bold]{template}[/bold]'")
 
-        console.print(f"✅ Saved alias '[bold]{alias}[/bold]' -> {pod.id}")
+            if dry_run:
+                # Show what would be created
+                template_obj = pod_manager.get_template(template)
+                next_index = pod_manager.config.find_next_alias_index(
+                    template_obj.alias_template
+                )
+                proposed_alias = template_obj.alias_template.format(i=next_index)
+
+                console.print("[bold]DRY RUN[/bold] Would create:")
+                console.print(f"   Alias: {proposed_alias}")
+                console.print(f"   GPU: {template_obj.gpu_spec}")
+                console.print(f"   Storage: {template_obj.storage_spec}")
+                return
+
+            # Create pod with progress indication
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                TimeElapsedColumn(),
+                transient=True,
+                console=console,
+            ) as progress:
+                task = progress.add_task("Creating pod from template…", total=None)
+                pod = pod_manager.create_pod_from_template(template, force, dry_run)
+                progress.update(task, description="Pod created successfully")
+
+            final_alias = pod.alias
+        else:
+            # Use direct specification mode - at this point we know these are not None due to validation
+            assert alias is not None
+            assert gpu is not None
+            assert storage is not None
+
+            gpu_spec = parse_gpu_spec(gpu)
+            volume_gb = parse_storage_spec(storage)
+
+            request = PodCreateRequest(
+                alias=alias,
+                gpu_spec=gpu_spec,
+                volume_gb=volume_gb,
+                force=force,
+                dry_run=dry_run,
+            )
+
+            console.print(
+                f"🚀 Creating pod '[bold]{alias}[/bold]': "
+                f"image=[dim]{request.image}[/dim], "
+                f"GPU={gpu_spec}, volume={volume_gb}GB"
+            )
+
+            if dry_run:
+                console.print("[bold]DRY RUN[/bold] No changes were made.")
+                return
+
+            # Create pod with progress indication
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                TimeElapsedColumn(),
+                transient=True,
+                console=console,
+            ) as progress:
+                task = progress.add_task("Creating pod…", total=None)
+                pod = pod_manager.create_pod(request)
+                progress.update(task, description="Pod created successfully")
+
+            final_alias = alias
+
+        # At this point final_alias should never be None
+        assert final_alias is not None
+
+        console.print(f"✅ Saved alias '[bold]{final_alias}[/bold]' -> {pod.id}")
 
         # Configure SSH
         if pod.ip_address and pod.ssh_port:
             console.print("📝 Updating SSH config…")
             ssh_config = SSHConfig(
-                alias=alias,
+                alias=final_alias,
                 pod_id=pod.id,
                 hostname=pod.ip_address,
                 port=pod.ssh_port,
@@ -117,7 +171,7 @@ def create_command(
             console.print("✅ SSH config updated successfully.")
 
         # Run setup scripts
-        run_setup_scripts(alias)
+        run_setup_scripts(final_alias)
 
     except Exception as e:
         handle_cli_error(e)
@@ -395,3 +449,76 @@ def scheduler_tick_command() -> None:
     except Exception:
         # Silently fail for scheduler tick to avoid noise
         pass
+
+
+def template_create_command(
+    identifier: str, alias_template: str, gpu: str, storage: str, force: bool = False
+) -> None:
+    """Create a new pod template."""
+    try:
+        template = PodTemplate(
+            identifier=identifier,
+            alias_template=alias_template,
+            gpu_spec=gpu,
+            storage_spec=storage,
+        )
+
+        pod_manager = get_pod_manager()
+        pod_manager.add_template(template, force)
+
+        console.print(f"✅ Created template '[bold]{identifier}[/bold]'")
+        console.print(f"   Alias template: {alias_template}")
+        console.print(f"   GPU: {gpu}")
+        console.print(f"   Storage: {storage}")
+
+    except Exception as e:
+        handle_cli_error(e)
+
+
+def template_list_command() -> None:
+    """List all pod templates."""
+    try:
+        pod_manager = get_pod_manager()
+        templates = pod_manager.list_templates()
+
+        if not templates:
+            console.print("No templates found.")
+            return
+
+        from rich.table import Table
+
+        table = Table(title="Pod Templates")
+        table.add_column("Identifier", style="cyan", no_wrap=True)
+        table.add_column("Alias Template", style="magenta")
+        table.add_column("GPU", style="green")
+        table.add_column("Storage", style="yellow")
+
+        for template in templates:
+            table.add_row(
+                template.identifier,
+                template.alias_template,
+                template.gpu_spec,
+                template.storage_spec,
+            )
+
+        console.print(table)
+
+    except Exception as e:
+        handle_cli_error(e)
+
+
+def template_delete_command(identifier: str, missing_ok: bool = False) -> None:
+    """Delete a pod template."""
+    try:
+        pod_manager = get_pod_manager()
+        template = pod_manager.remove_template(identifier, missing_ok)
+
+        if template:
+            console.print(f"✅ Deleted template '[bold]{identifier}[/bold]'")
+        else:
+            console.print(
+                f"i  Template '[bold]{identifier}[/bold]' not found; nothing to do."
+            )
+
+    except Exception as e:
+        handle_cli_error(e)

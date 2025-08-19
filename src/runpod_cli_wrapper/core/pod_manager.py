@@ -8,7 +8,13 @@ including creation, lifecycle management, and status tracking.
 import json
 
 from runpod_cli_wrapper.config import POD_CONFIG_FILE, ensure_config_dir_exists
-from runpod_cli_wrapper.core.models import Pod, PodCreateRequest, PodStatus
+from runpod_cli_wrapper.core.models import (
+    AppConfig,
+    Pod,
+    PodCreateRequest,
+    PodStatus,
+    PodTemplate,
+)
 from runpod_cli_wrapper.utils.api_client import RunPodAPIClient
 from runpod_cli_wrapper.utils.errors import AliasError, PodError
 
@@ -19,31 +25,48 @@ class PodManager:
     def __init__(self, api_client: RunPodAPIClient | None = None):
         """Initialize the pod manager with an optional API client."""
         self.api_client = api_client or RunPodAPIClient()
-        self._aliases: dict[str, str] | None = None
+        self._config: AppConfig | None = None
+
+    @property
+    def config(self) -> AppConfig:
+        """Get current configuration, loading from disk if needed."""
+        if self._config is None:
+            self._config = self._load_config()
+        return self._config
 
     @property
     def aliases(self) -> dict[str, str]:
-        """Get current alias mappings, loading from disk if needed."""
-        if self._aliases is None:
-            self._aliases = self._load_aliases()
-        return self._aliases
+        """Get current alias mappings."""
+        return self.config.aliases
 
-    def _load_aliases(self) -> dict[str, str]:
-        """Load alias → pod_id mappings from storage."""
+    def _load_config(self) -> AppConfig:
+        """Load configuration from storage."""
         try:
             with POD_CONFIG_FILE.open("r") as f:
                 data = json.load(f)
+                # Handle legacy format (simple dict) and new format (AppConfig)
                 if isinstance(data, dict):
-                    return {str(k): str(v) for k, v in data.items()}
-                return {}
+                    if (
+                        "aliases" in data
+                        or "pod_templates" in data
+                        or "scheduled_tasks" in data
+                    ):
+                        # New AppConfig format
+                        return AppConfig.model_validate(data)
+                    else:
+                        # Legacy format - just aliases
+                        return AppConfig(
+                            aliases={str(k): str(v) for k, v in data.items()}
+                        )
+                return AppConfig()
         except (FileNotFoundError, json.JSONDecodeError):
-            return {}
+            return AppConfig()
 
-    def _save_aliases(self) -> None:
-        """Save alias mappings to storage."""
+    def _save_config(self) -> None:
+        """Save configuration to storage."""
         ensure_config_dir_exists()
         with POD_CONFIG_FILE.open("w") as f:
-            json.dump(self.aliases, f, indent=2, sort_keys=True)
+            f.write(self.config.model_dump_json(indent=2))
             f.write("\n")
 
     def add_alias(self, alias: str, pod_id: str, force: bool = False) -> None:
@@ -52,7 +75,7 @@ class PodManager:
             raise AliasError.already_exists(alias)
 
         self.aliases[alias] = pod_id
-        self._save_aliases()
+        self._save_config()
 
     def remove_alias(self, alias: str, missing_ok: bool = False) -> str:
         """Remove an alias mapping, returning the pod ID."""
@@ -63,7 +86,7 @@ class PodManager:
             raise AliasError.not_found(alias, available)
 
         pod_id = self.aliases.pop(alias)
-        self._save_aliases()
+        self._save_config()
         return pod_id
 
     def get_pod_id(self, alias: str) -> str:
@@ -129,7 +152,7 @@ class PodManager:
 
         # Save the alias mapping
         self.aliases[request.alias] = pod_id
-        self._save_aliases()
+        self._save_config()
 
         # Wait for pod to be ready
         pod_data = self.api_client.wait_for_pod_ready(pod_id)
@@ -205,3 +228,60 @@ class PodManager:
             return ip, port
 
         return pod.ip_address, pod.ssh_port
+
+    # Template management methods
+    def add_template(self, template: PodTemplate, force: bool = False) -> None:
+        """Add or update a pod template."""
+        if not self.config.add_template(template, force):
+            raise AliasError.already_exists(template.identifier)
+        self._save_config()
+
+    def get_template(self, identifier: str) -> PodTemplate:
+        """Get a pod template by identifier."""
+        template = self.config.get_template(identifier)
+        if template is None:
+            available = list(self.config.pod_templates.keys())
+            raise AliasError.not_found(identifier, available)
+        return template
+
+    def remove_template(
+        self, identifier: str, missing_ok: bool = False
+    ) -> PodTemplate | None:
+        """Remove a template, return the template if it existed."""
+        template = self.config.remove_template(identifier)
+        if template is None and not missing_ok:
+            available = list(self.config.pod_templates.keys())
+            raise AliasError.not_found(identifier, available)
+        if template is not None:
+            self._save_config()
+        return template
+
+    def list_templates(self) -> list[PodTemplate]:
+        """List all pod templates."""
+        return sorted(self.config.pod_templates.values(), key=lambda t: t.identifier)
+
+    def create_pod_from_template(
+        self, template_identifier: str, force: bool = False, dry_run: bool = False
+    ) -> Pod:
+        """Create a pod using a template, finding the next available alias index."""
+        template = self.get_template(template_identifier)
+
+        # Find the next available index
+        next_index = self.config.find_next_alias_index(template.alias_template)
+        alias = template.alias_template.format(i=next_index)
+
+        # Create the pod request
+        from runpod_cli_wrapper.cli.utils import parse_gpu_spec, parse_storage_spec
+
+        gpu_spec = parse_gpu_spec(template.gpu_spec)
+        volume_gb = parse_storage_spec(template.storage_spec)
+
+        request = PodCreateRequest(
+            alias=alias,
+            gpu_spec=gpu_spec,
+            volume_gb=volume_gb,
+            force=force,
+            dry_run=dry_run,
+        )
+
+        return self.create_pod(request)
