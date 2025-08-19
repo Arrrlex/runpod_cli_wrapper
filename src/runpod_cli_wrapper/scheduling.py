@@ -57,15 +57,17 @@ def save_schedule_tasks(tasks: list[dict]) -> None:
 
 
 def auto_clear_completed_tasks() -> int:
-    """Remove tasks with status 'completed' and persist if any were removed. Returns count removed."""
+    """Remove tasks with status 'completed' or 'cancelled' and persist if any were removed. Returns count removed."""
     tasks = load_schedule_tasks()
     before = len(tasks)
     if before == 0:
         return 0
-    pending_or_failed = [t for t in tasks if t.get("status") != "completed"]
-    removed = before - len(pending_or_failed)
+    active_tasks = [
+        t for t in tasks if t.get("status") not in {"completed", "cancelled"}
+    ]
+    removed = before - len(active_tasks)
     if removed > 0:
-        save_schedule_tasks(pending_or_failed)
+        save_schedule_tasks(active_tasks)
     return removed
 
 

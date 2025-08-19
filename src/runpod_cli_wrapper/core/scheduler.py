@@ -69,10 +69,14 @@ class Scheduler:
 
         tmp_path.replace(SCHEDULE_FILE)
 
-    def clear_completed_tasks(self) -> int:
-        """Remove completed tasks and return count removed."""
+    def clean_completed_tasks(self) -> int:
+        """Remove completed and cancelled tasks and return count removed."""
         original_count = len(self.tasks)
-        self._tasks = [t for t in self.tasks if t.status != TaskStatus.COMPLETED]
+        self._tasks = [
+            t
+            for t in self.tasks
+            if t.status not in {TaskStatus.COMPLETED, TaskStatus.CANCELLED}
+        ]
 
         removed = original_count - len(self.tasks)
         if removed > 0:

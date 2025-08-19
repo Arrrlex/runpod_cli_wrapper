@@ -18,7 +18,7 @@ from runpod_cli_wrapper.cli.commands import (
     destroy_command,
     list_command,
     schedule_cancel_command,
-    schedule_clear_completed_command,
+    schedule_clean_command,
     schedule_list_command,
     scheduler_tick_command,
     start_command,
@@ -169,10 +169,10 @@ def schedule_cancel(task_id: str = typer.Argument(..., help="Task id to cancel")
     schedule_cancel_command(task_id)
 
 
-@schedule_app.command("clear-completed")
-def schedule_clear_completed():
-    """Remove tasks with status 'completed'."""
-    schedule_clear_completed_command()
+@schedule_app.command("clean")
+def schedule_clean():
+    """Remove tasks with status 'completed' or 'cancelled'."""
+    schedule_clean_command()
 
 
 @template_app.command("create")
@@ -220,10 +220,10 @@ def scheduler_tick():
 
 def main():
     """Main entry point with auto-cleanup of completed tasks."""
-    # Auto-clear completed tasks before any command runs
+    # Auto-clean completed tasks before any command runs
     with contextlib.suppress(Exception):
         scheduler = Scheduler()
-        scheduler.clear_completed_tasks()
+        scheduler.clean_completed_tasks()
         # Keep this silent in normal output
 
     # Mount sub-apps

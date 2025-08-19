@@ -406,16 +406,18 @@ def schedule_cancel_command(task_id: str) -> None:
         handle_cli_error(e)
 
 
-def schedule_clear_completed_command() -> None:
-    """Remove completed tasks."""
+def schedule_clean_command() -> None:
+    """Remove completed and cancelled tasks."""
     try:
         scheduler = get_scheduler()
-        removed = scheduler.clear_completed_tasks()
+        removed = scheduler.clean_completed_tasks()
 
         if removed:
-            console.print(f"✅ Removed [bold]{removed}[/bold] completed task(s).")
+            console.print(
+                f"✅ Removed [bold]{removed}[/bold] completed/cancelled task(s)."
+            )
         else:
-            console.print("No completed tasks to remove.")
+            console.print("No completed or cancelled tasks to remove.")
 
     except Exception as e:
         handle_cli_error(e)

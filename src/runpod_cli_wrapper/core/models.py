@@ -231,11 +231,13 @@ class AppConfig(BaseModel):
         """Get tasks that are due for execution."""
         return [task for task in self.scheduled_tasks if task.is_due(current_epoch)]
 
-    def clear_completed_tasks(self) -> int:
-        """Remove completed tasks and return count removed."""
+    def clean_completed_tasks(self) -> int:
+        """Remove completed and cancelled tasks and return count removed."""
         original_count = len(self.scheduled_tasks)
         self.scheduled_tasks = [
-            t for t in self.scheduled_tasks if t.status != TaskStatus.COMPLETED
+            t
+            for t in self.scheduled_tasks
+            if t.status not in {TaskStatus.COMPLETED, TaskStatus.CANCELLED}
         ]
         return original_count - len(self.scheduled_tasks)
 

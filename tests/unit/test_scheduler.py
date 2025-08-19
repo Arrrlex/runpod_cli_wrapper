@@ -150,8 +150,8 @@ class TestScheduler:
         assert len(due_tasks) == 1
         assert due_tasks[0].id == past_task.id
 
-    def test_clear_completed_tasks(self, scheduler):
-        """Test clearing completed tasks."""
+    def test_clean_completed_tasks(self, scheduler):
+        """Test cleaning completed and cancelled tasks."""
         when = datetime(2022, 1, 25, 15, 30, tzinfo=tz.tzlocal())
 
         with patch.object(scheduler, "_save_tasks"):
@@ -159,16 +159,21 @@ class TestScheduler:
             task1 = scheduler.schedule_stop("pod1", when)
             task2 = scheduler.schedule_stop("pod2", when)
             task3 = scheduler.schedule_stop("pod3", when)
+            task4 = scheduler.schedule_stop("pod4", when)
 
             task1.status = TaskStatus.COMPLETED
-            task2.status = TaskStatus.PENDING
-            task3.status = TaskStatus.COMPLETED
+            task2.status = TaskStatus.CANCELLED
+            task3.status = TaskStatus.PENDING
+            task4.status = TaskStatus.FAILED
 
-            removed = scheduler.clear_completed_tasks()
+            removed = scheduler.clean_completed_tasks()
 
-        assert removed == 2  # Two completed tasks removed
-        assert len(scheduler.tasks) == 1  # One pending task remains
-        assert scheduler.tasks[0].status == TaskStatus.PENDING
+        assert removed == 2  # Two completed/cancelled tasks removed
+        assert len(scheduler.tasks) == 2  # Two active tasks remain (pending, failed)
+        assert all(
+            task.status in {TaskStatus.PENDING, TaskStatus.FAILED}
+            for task in scheduler.tasks
+        )
 
     def test_task_not_found(self, scheduler):
         """Test error when task not found."""
