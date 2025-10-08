@@ -34,9 +34,7 @@ class TestCursorCommand:
 
         # Verify pod manager was called
         mock_manager.get_pod_id.assert_called_once_with("test-alias")
-        mock_manager.get_pod_config_value.assert_called_once_with(
-            "test-alias", "cursor_path"
-        )
+        mock_manager.get_pod_config_value.assert_called_once_with("test-alias", "path")
 
         # Verify subprocess was called with correct arguments
         mock_subprocess.assert_called_once_with(
@@ -142,6 +140,7 @@ class TestShellCommand:
         # Setup mock pod manager
         mock_manager = MagicMock()
         mock_manager.get_pod_id.return_value = "test-pod-id"
+        mock_manager.get_pod_config_value.return_value = None  # No config set
         mock_get_pod_manager.return_value = mock_manager
 
         # Setup mock subprocess
@@ -152,6 +151,7 @@ class TestShellCommand:
 
         # Verify pod manager was called
         mock_manager.get_pod_id.assert_called_once_with("test-alias")
+        mock_manager.get_pod_config_value.assert_called_once_with("test-alias", "path")
 
         # Verify subprocess was called with correct arguments
         mock_subprocess.assert_called_once_with(
@@ -167,6 +167,7 @@ class TestShellCommand:
         # Setup mock pod manager
         mock_manager = MagicMock()
         mock_manager.get_pod_id.return_value = "test-pod-id"
+        mock_manager.get_pod_config_value.return_value = None  # No config set
         mock_get_pod_manager.return_value = mock_manager
 
         # Setup mock subprocess to simulate user exit (non-zero but expected)
@@ -178,6 +179,36 @@ class TestShellCommand:
         # Verify subprocess was called
         mock_subprocess.assert_called_once_with(
             ["ssh", "-A", "test-alias"], check=False
+        )
+
+    @patch("runpod_cli_wrapper.cli.commands.get_pod_manager")
+    @patch("subprocess.run")
+    def test_shell_command_with_configured_path(
+        self, mock_subprocess, mock_get_pod_manager
+    ):
+        """Test shell command with configured path."""
+        # Setup mock pod manager
+        mock_manager = MagicMock()
+        mock_manager.get_pod_id.return_value = "test-pod-id"
+        mock_manager.get_pod_config_value.return_value = "/workspace/my-project"
+        mock_get_pod_manager.return_value = mock_manager
+
+        # Setup mock subprocess
+        mock_subprocess.return_value = MagicMock(returncode=0)
+
+        # Run command
+        shell_command("test-alias")
+
+        # Verify subprocess was called with cd command
+        mock_subprocess.assert_called_once_with(
+            [
+                "ssh",
+                "-A",
+                "-t",
+                "test-alias",
+                "cd /workspace/my-project && exec bash -l",
+            ],
+            check=False,
         )
 
     @patch("runpod_cli_wrapper.cli.commands.get_pod_manager")

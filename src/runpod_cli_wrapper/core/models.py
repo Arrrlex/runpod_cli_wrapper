@@ -202,7 +202,7 @@ class PodTemplate(BaseModel):
 class PodConfig(BaseModel):
     """Per-pod configuration settings."""
 
-    cursor_path: str | None = Field(None, description="Default path for Cursor editor")
+    path: str | None = Field(None, description="Default working directory path")
 
 
 class PodMetadata(BaseModel):
@@ -277,8 +277,8 @@ class AppConfig(BaseModel):
             return False
 
         # Set the config value
-        if key == "cursor_path":
-            self.pod_metadata[alias].config.cursor_path = value
+        if key == "path":
+            self.pod_metadata[alias].config.path = value
             return True
 
         return False

@@ -575,7 +575,7 @@ def cursor_command(alias: str, path: str | None = None) -> None:
 
         # Use configured default if path not provided
         if path is None:
-            configured_path = pod_manager.get_pod_config_value(alias, "cursor_path")
+            configured_path = pod_manager.get_pod_config_value(alias, "path")
             path = configured_path or "/workspace"
 
         remote_uri = f"vscode-remote://ssh-remote+{alias}{path}"
@@ -602,8 +602,19 @@ def shell_command(alias: str) -> None:
 
         import subprocess
 
-        console.print(f"🐚 Connecting to '[bold]{alias}[/bold]'…")
-        subprocess.run(["ssh", "-A", alias], check=False)
+        # Get configured path to cd into
+        configured_path = pod_manager.get_pod_config_value(alias, "path")
+
+        if configured_path:
+            console.print(f"🐚 Connecting to '[bold]{alias}:{configured_path}[/bold]'…")
+            # Use ssh -t to allocate a PTY for the cd command
+            subprocess.run(
+                ["ssh", "-A", "-t", alias, f"cd {configured_path} && exec bash -l"],
+                check=False,
+            )
+        else:
+            console.print(f"🐚 Connecting to '[bold]{alias}[/bold]'…")
+            subprocess.run(["ssh", "-A", alias], check=False)
 
     except Exception as e:
         handle_cli_error(e)
@@ -615,7 +626,7 @@ def config_set_command(alias: str, key: str, value: str | None) -> None:
         pod_manager = get_pod_manager()
 
         # Validate key
-        valid_keys = ["cursor_path"]
+        valid_keys = ["path"]
         if key not in valid_keys:
             console.print(
                 f"❌ Invalid config key: {key}. Valid keys: {', '.join(valid_keys)}",
@@ -640,7 +651,7 @@ def config_get_command(alias: str, key: str) -> None:
         pod_manager = get_pod_manager()
 
         # Validate key
-        valid_keys = ["cursor_path"]
+        valid_keys = ["path"]
         if key not in valid_keys:
             console.print(
                 f"❌ Invalid config key: {key}. Valid keys: {', '.join(valid_keys)}",

@@ -67,23 +67,23 @@ Templates automatically find the lowest available number for the `{i}` placehold
 
 ### Pod Configuration
 
-You can configure per-pod settings like default paths for Cursor:
+You can configure per-pod settings like default working directory paths:
 
 ```bash
-# Set a default Cursor path for a pod
-rp config set alex-ast-1 cursor_path /workspace/ast-goodfire
+# Set a default path for a pod (used by both cursor and shell)
+rp config set alex-ast-1 path /workspace/ast-goodfire
 
 # Get a specific config value
-rp config get alex-ast-1 cursor_path
+rp config get alex-ast-1 path
 
 # List all configuration for a pod
 rp config list alex-ast-1
 
 # Clear a config value
-rp config set alex-ast-1 cursor_path
+rp config set alex-ast-1 path
 ```
 
-When you run `rp cursor alex-ast-1` without specifying a path, it will use the configured default path instead of `/workspace`.
+When you run `rp cursor alex-ast-1` or `rp shell alex-ast-1` without specifying a path, they will use the configured default path. The cursor command defaults to `/workspace` if no path is configured, and the shell command will cd into the configured path automatically.
 
 ### Scheduling
 

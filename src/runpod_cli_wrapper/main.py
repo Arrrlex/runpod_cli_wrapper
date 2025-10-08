@@ -258,7 +258,7 @@ def shell(
 @config_app.command("set")
 def config_set(
     alias: str = typer.Argument(..., help="Pod alias to configure"),
-    key: str = typer.Argument(..., help="Configuration key (e.g., 'cursor_path')"),
+    key: str = typer.Argument(..., help="Configuration key (e.g., 'path')"),
     value: str = typer.Argument(None, help="Value to set (omit to clear)"),
 ):
     """Set a configuration value for a pod."""

@@ -304,8 +304,8 @@ class PodManager:
             available = list(self.aliases.keys())
             raise AliasError.not_found(alias, available)
 
-        if key == "cursor_path":
-            return pod_config.cursor_path
+        if key == "path":
+            return pod_config.path
 
         return None
 
@@ -316,4 +316,4 @@ class PodManager:
             available = list(self.aliases.keys())
             raise AliasError.not_found(alias, available)
 
-        return {"cursor_path": pod_config.cursor_path}
+        return {"path": pod_config.path}
