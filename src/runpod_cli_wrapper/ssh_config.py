@@ -186,6 +186,7 @@ def update_ssh_config(
     new_block.append(f"    Port {new_port}\n")
     new_block.append("    IdentitiesOnly yes\n")
     new_block.append("    IdentityFile ~/.ssh/runpod\n")
+    new_block.append("    ForwardAgent yes\n")
 
     # Try to find an existing block for this alias
     target_block = None

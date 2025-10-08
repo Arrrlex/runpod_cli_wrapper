@@ -155,6 +155,7 @@ class SSHConfig(BaseModel):
             f"    Port {self.port}\n",
             "    IdentitiesOnly yes\n",
             f"    IdentityFile {self.identity_file}\n",
+            "    ForwardAgent yes\n",
         ]
 
 

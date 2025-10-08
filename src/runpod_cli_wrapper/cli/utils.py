@@ -287,7 +287,7 @@ def run_setup_scripts(alias: str) -> None:
             run_local_command(["ssh", alias, f"chmod +x {remote_script_path}"])
 
             console.print("    4. Executing setup script on pod…")
-            run_local_command_stream(["ssh", alias, remote_script_path])
+            run_local_command_stream(["ssh", "-A", alias, remote_script_path])
 
             console.print("✅ Remote setup complete.")
 
