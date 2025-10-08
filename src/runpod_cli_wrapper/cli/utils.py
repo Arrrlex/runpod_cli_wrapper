@@ -138,8 +138,10 @@ def parse_storage_spec(storage_string: str) -> int:
     return gb
 
 
-def display_pods_table(pods: list[Pod]) -> None:
-    """Display a table of pods."""
+def display_pods_table(
+    pods: list[Pod], configs: dict[str, dict[str, str | None]] | None = None
+) -> None:
+    """Display a table of pods with optional config info."""
     if not pods:
         console.print(
             "[yellow]No aliases configured. Add one with: rp add <alias> <pod_id>[/yellow]"
@@ -150,6 +152,8 @@ def display_pods_table(pods: list[Pod]) -> None:
     table.add_column("Alias", style="green")
     table.add_column("ID", style="magenta")
     table.add_column("Status", style="white")
+    if configs is not None:
+        table.add_column("Path", style="blue")
 
     for pod in pods:
         if pod.status == PodStatus.RUNNING:
@@ -159,7 +163,17 @@ def display_pods_table(pods: list[Pod]) -> None:
         else:
             status_text = Text("invalid", style="bold red")
 
-        table.add_row(pod.alias, pod.id, status_text)
+        row = [pod.alias, pod.id, status_text]
+
+        if configs is not None:
+            config = configs.get(pod.alias, {})
+            path = config.get("path")
+            if path:
+                row.append(path)
+            else:
+                row.append(Text("—", style="dim"))
+
+        table.add_row(*row)
 
     console.print(table)
 
