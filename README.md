@@ -4,7 +4,7 @@ This is a little wrapper around runpod's python API. It provides some neat thing
 
 ## Installation
 
-Install using `uv`:
+Install using [uv](https://docs.astral.sh/uv/):
 
 ```bash
 uv tool install https://github.com/Arrrlex/runpod_cli_wrapper.git
