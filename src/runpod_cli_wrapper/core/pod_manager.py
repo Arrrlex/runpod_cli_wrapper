@@ -149,7 +149,7 @@ class PodManager:
         pod_id = created["id"]
 
         # Save the alias mapping
-        self.aliases[request.alias] = pod_id
+        self.config.add_alias(request.alias, pod_id, force=request.force)
         self._save_config()
 
         # Wait for pod to be ready
