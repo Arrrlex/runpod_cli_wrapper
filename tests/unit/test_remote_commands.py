@@ -23,6 +23,7 @@ class TestCursorCommand:
         # Setup mock pod manager
         mock_manager = MagicMock()
         mock_manager.get_pod_id.return_value = "test-pod-id"
+        mock_manager.get_pod_config_value.return_value = None  # No config set
         mock_get_pod_manager.return_value = mock_manager
 
         # Setup mock subprocess
@@ -33,6 +34,9 @@ class TestCursorCommand:
 
         # Verify pod manager was called
         mock_manager.get_pod_id.assert_called_once_with("test-alias")
+        mock_manager.get_pod_config_value.assert_called_once_with(
+            "test-alias", "cursor_path"
+        )
 
         # Verify subprocess was called with correct arguments
         mock_subprocess.assert_called_once_with(
@@ -46,8 +50,36 @@ class TestCursorCommand:
 
     @patch("runpod_cli_wrapper.cli.commands.get_pod_manager")
     @patch("subprocess.run")
+    def test_cursor_command_uses_configured_default(
+        self, mock_subprocess, mock_get_pod_manager
+    ):
+        """Test cursor command uses configured default path."""
+        # Setup mock pod manager with configured path
+        mock_manager = MagicMock()
+        mock_manager.get_pod_id.return_value = "test-pod-id"
+        mock_manager.get_pod_config_value.return_value = "/workspace/my-project"
+        mock_get_pod_manager.return_value = mock_manager
+
+        # Setup mock subprocess
+        mock_subprocess.return_value = MagicMock(returncode=0)
+
+        # Run command without path (should use config)
+        cursor_command("test-alias")
+
+        # Verify subprocess was called with configured path
+        mock_subprocess.assert_called_once_with(
+            [
+                "cursor",
+                "--folder-uri",
+                "vscode-remote://ssh-remote+test-alias/workspace/my-project",
+            ],
+            check=True,
+        )
+
+    @patch("runpod_cli_wrapper.cli.commands.get_pod_manager")
+    @patch("subprocess.run")
     def test_cursor_command_custom_path(self, mock_subprocess, mock_get_pod_manager):
-        """Test cursor command with custom path."""
+        """Test cursor command with custom path overrides config."""
         # Setup mock pod manager
         mock_manager = MagicMock()
         mock_manager.get_pod_id.return_value = "test-pod-id"
@@ -56,7 +88,7 @@ class TestCursorCommand:
         # Setup mock subprocess
         mock_subprocess.return_value = MagicMock(returncode=0)
 
-        # Run command with custom path
+        # Run command with explicit path (config not checked)
         cursor_command("test-alias", "/custom/path")
 
         # Verify subprocess was called with custom path

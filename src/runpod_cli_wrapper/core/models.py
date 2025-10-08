@@ -199,11 +199,29 @@ class PodTemplate(BaseModel):
         return v
 
 
+class PodConfig(BaseModel):
+    """Per-pod configuration settings."""
+
+    cursor_path: str | None = Field(None, description="Default path for Cursor editor")
+
+
+class PodMetadata(BaseModel):
+    """Pod metadata including ID and optional configuration."""
+
+    pod_id: str = Field(description="RunPod instance ID")
+    config: PodConfig = Field(
+        default_factory=PodConfig, description="Pod configuration"
+    )
+
+
 class AppConfig(BaseModel):
     """Application configuration and state."""
 
     aliases: dict[str, str] = Field(
-        default_factory=dict, description="Alias to pod ID mappings"
+        default_factory=dict, description="Alias to pod ID mappings (legacy format)"
+    )
+    pod_metadata: dict[str, PodMetadata] = Field(
+        default_factory=dict, description="Pod metadata by alias (new format)"
     )
     scheduled_tasks: list[ScheduleTask] = Field(
         default_factory=list, description="Scheduled tasks"
@@ -214,18 +232,62 @@ class AppConfig(BaseModel):
 
     def add_alias(self, alias: str, pod_id: str, force: bool = False) -> bool:
         """Add or update an alias mapping."""
-        if alias in self.aliases and not force:
+        # Check both legacy and new format
+        if (alias in self.aliases or alias in self.pod_metadata) and not force:
             return False
-        self.aliases[alias] = pod_id
+
+        # Migrate to new format
+        if alias in self.aliases:
+            del self.aliases[alias]
+
+        self.pod_metadata[alias] = PodMetadata(pod_id=pod_id)
         return True
 
     def remove_alias(self, alias: str) -> str | None:
         """Remove an alias mapping, return the pod ID if it existed."""
+        # Try new format first
+        if alias in self.pod_metadata:
+            metadata = self.pod_metadata.pop(alias)
+            return metadata.pod_id
+        # Fall back to legacy format
         return self.aliases.pop(alias, None)
 
     def get_pod_id(self, alias: str) -> str | None:
         """Get pod ID for an alias."""
+        # Try new format first
+        if alias in self.pod_metadata:
+            return self.pod_metadata[alias].pod_id
+        # Fall back to legacy format
         return self.aliases.get(alias)
+
+    def get_pod_config(self, alias: str) -> PodConfig | None:
+        """Get pod configuration for an alias."""
+        if alias in self.pod_metadata:
+            return self.pod_metadata[alias].config
+        return None
+
+    def set_pod_config_value(self, alias: str, key: str, value: str | None) -> bool:
+        """Set a configuration value for a pod. Returns True if successful."""
+        # Migrate from legacy format if needed
+        if alias in self.aliases and alias not in self.pod_metadata:
+            pod_id = self.aliases.pop(alias)
+            self.pod_metadata[alias] = PodMetadata(pod_id=pod_id)
+
+        if alias not in self.pod_metadata:
+            return False
+
+        # Set the config value
+        if key == "cursor_path":
+            self.pod_metadata[alias].config.cursor_path = value
+            return True
+
+        return False
+
+    def get_all_aliases(self) -> dict[str, str]:
+        """Get all alias->pod_id mappings from both formats."""
+        result = dict(self.aliases)  # Legacy format
+        result.update({alias: meta.pod_id for alias, meta in self.pod_metadata.items()})
+        return result
 
     def add_task(self, task: ScheduleTask) -> None:
         """Add a scheduled task."""
@@ -262,9 +324,10 @@ class AppConfig(BaseModel):
 
     def find_next_alias_index(self, alias_template: str) -> int:
         """Find the lowest i ≥ 1 where alias_template.format(i=i) doesn't exist."""
+        all_aliases = self.get_all_aliases()
         i = 1
         while True:
             candidate_alias = alias_template.format(i=i)
-            if candidate_alias not in self.aliases:
+            if candidate_alias not in all_aliases:
                 return i
             i += 1

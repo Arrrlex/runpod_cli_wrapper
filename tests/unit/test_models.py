@@ -350,3 +350,82 @@ class TestAppConfig:
         # Test with different template format
         config.aliases["prefix-1-suffix"] = "pod4"
         assert config.find_next_alias_index("prefix-{i}-suffix") == 2
+
+
+class TestPodConfig:
+    """Test pod configuration model."""
+
+    def test_empty_config(self):
+        """Test creating empty pod config."""
+        from runpod_cli_wrapper.core.models import PodConfig
+
+        config = PodConfig()
+        assert config.cursor_path is None
+
+    def test_with_cursor_path(self):
+        """Test creating pod config with cursor_path."""
+        from runpod_cli_wrapper.core.models import PodConfig
+
+        config = PodConfig(cursor_path="/workspace/my-project")
+        assert config.cursor_path == "/workspace/my-project"
+
+
+class TestPodMetadata:
+    """Test pod metadata model."""
+
+    def test_basic_metadata(self):
+        """Test creating pod metadata with just ID."""
+        from runpod_cli_wrapper.core.models import PodMetadata
+
+        metadata = PodMetadata(pod_id="pod123")
+        assert metadata.pod_id == "pod123"
+        assert metadata.config.cursor_path is None
+
+    def test_metadata_with_config(self):
+        """Test creating pod metadata with config."""
+        from runpod_cli_wrapper.core.models import PodConfig, PodMetadata
+
+        metadata = PodMetadata(
+            pod_id="pod123",
+            config=PodConfig(cursor_path="/workspace/project"),
+        )
+        assert metadata.pod_id == "pod123"
+        assert metadata.config.cursor_path == "/workspace/project"
+
+
+class TestAppConfigMigration:
+    """Test AppConfig legacy format migration."""
+
+    def test_get_pod_config_value_from_new_format(self):
+        """Test getting pod config value from new format."""
+        config = AppConfig()
+        config.add_alias("test-1", "pod123")
+        config.set_pod_config_value("test-1", "cursor_path", "/workspace/project")
+
+        value = config.get_pod_config("test-1")
+        assert value is not None
+        assert value.cursor_path == "/workspace/project"
+
+    def test_set_pod_config_migrates_legacy(self):
+        """Test that setting config migrates legacy alias."""
+        config = AppConfig(aliases={"test-1": "pod123"})
+
+        assert config.set_pod_config_value(
+            "test-1", "cursor_path", "/workspace/project"
+        )
+
+        # Should migrate to new format
+        assert "test-1" in config.pod_metadata
+        assert "test-1" not in config.aliases
+        assert config.pod_metadata["test-1"].config.cursor_path == "/workspace/project"
+
+    def test_get_all_aliases_both_formats(self):
+        """Test getting all aliases from both formats."""
+        config = AppConfig(aliases={"legacy-1": "pod1"})
+        config.add_alias("new-1", "pod2")
+
+        all_aliases = config.get_all_aliases()
+        assert all_aliases == {
+            "legacy-1": "pod1",
+            "new-1": "pod2",
+        }

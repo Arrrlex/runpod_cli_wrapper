@@ -13,6 +13,9 @@ from typer.core import TyperGroup
 from runpod_cli_wrapper.cli.commands import (
     add_command,
     clean_command,
+    config_get_command,
+    config_list_command,
+    config_set_command,
     create_command,
     cursor_command,
     delete_command,
@@ -52,6 +55,9 @@ schedule_app = typer.Typer(help="Manage scheduled tasks")
 
 # Template sub-application
 template_app = typer.Typer(help="Manage pod templates")
+
+# Config sub-application
+config_app = typer.Typer(help="Manage pod configuration")
 
 
 @app.command()
@@ -233,7 +239,9 @@ def scheduler_tick():
 @app.command()
 def cursor(
     alias: str = typer.Argument(..., help="Pod alias to connect to"),
-    path: str = typer.Argument("/workspace", help="Remote path to open"),
+    path: str = typer.Argument(
+        None, help="Remote path to open (uses config default or /workspace)"
+    ),
 ):
     """Open Cursor editor with remote SSH connection to pod."""
     cursor_command(alias, path)
@@ -247,6 +255,33 @@ def shell(
     shell_command(alias)
 
 
+@config_app.command("set")
+def config_set(
+    alias: str = typer.Argument(..., help="Pod alias to configure"),
+    key: str = typer.Argument(..., help="Configuration key (e.g., 'cursor_path')"),
+    value: str = typer.Argument(None, help="Value to set (omit to clear)"),
+):
+    """Set a configuration value for a pod."""
+    config_set_command(alias, key, value)
+
+
+@config_app.command("get")
+def config_get(
+    alias: str = typer.Argument(..., help="Pod alias to query"),
+    key: str = typer.Argument(..., help="Configuration key to get"),
+):
+    """Get a configuration value for a pod."""
+    config_get_command(alias, key)
+
+
+@config_app.command("list")
+def config_list(
+    alias: str = typer.Argument(..., help="Pod alias to list configuration for"),
+):
+    """List all configuration values for a pod."""
+    config_list_command(alias)
+
+
 def main():
     """Main entry point with auto-cleanup of completed tasks."""
     # Auto-clean completed tasks before any command runs
@@ -258,6 +293,7 @@ def main():
     # Mount sub-apps
     app.add_typer(schedule_app, name="schedule")
     app.add_typer(template_app, name="template")
+    app.add_typer(config_app, name="config")
     app()
 
 

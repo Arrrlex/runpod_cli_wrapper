@@ -36,8 +36,8 @@ class PodManager:
 
     @property
     def aliases(self) -> dict[str, str]:
-        """Get current alias mappings."""
-        return self.config.aliases
+        """Get current alias mappings (from both legacy and new format)."""
+        return self.config.get_all_aliases()
 
     def _load_config(self) -> AppConfig:
         """Load configuration from storage."""
@@ -71,21 +71,19 @@ class PodManager:
 
     def add_alias(self, alias: str, pod_id: str, force: bool = False) -> None:
         """Add or update an alias mapping."""
-        if alias in self.aliases and not force:
+        if not self.config.add_alias(alias, pod_id, force):
             raise AliasError.already_exists(alias)
-
-        self.aliases[alias] = pod_id
         self._save_config()
 
     def remove_alias(self, alias: str, missing_ok: bool = False) -> str:
         """Remove an alias mapping, returning the pod ID."""
-        if alias not in self.aliases:
+        pod_id = self.config.remove_alias(alias)
+        if pod_id is None:
             if missing_ok:
                 return ""
             available = list(self.aliases.keys())
             raise AliasError.not_found(alias, available)
 
-        pod_id = self.aliases.pop(alias)
         self._save_config()
         return pod_id
 
@@ -291,3 +289,31 @@ class PodManager:
         request = PodCreateRequest(**request_kwargs)
 
         return self.create_pod(request)
+
+    def set_pod_config(self, alias: str, key: str, value: str | None) -> None:
+        """Set a configuration value for a pod."""
+        if not self.config.set_pod_config_value(alias, key, value):
+            available = list(self.aliases.keys())
+            raise AliasError.not_found(alias, available)
+        self._save_config()
+
+    def get_pod_config_value(self, alias: str, key: str) -> str | None:
+        """Get a configuration value for a pod."""
+        pod_config = self.config.get_pod_config(alias)
+        if pod_config is None:
+            available = list(self.aliases.keys())
+            raise AliasError.not_found(alias, available)
+
+        if key == "cursor_path":
+            return pod_config.cursor_path
+
+        return None
+
+    def get_pod_config(self, alias: str) -> dict[str, str | None]:
+        """Get all configuration values for a pod."""
+        pod_config = self.config.get_pod_config(alias)
+        if pod_config is None:
+            available = list(self.aliases.keys())
+            raise AliasError.not_found(alias, available)
+
+        return {"cursor_path": pod_config.cursor_path}

@@ -565,13 +565,18 @@ def template_delete_command(identifier: str, missing_ok: bool = False) -> None:
         handle_cli_error(e)
 
 
-def cursor_command(alias: str, path: str = "/workspace") -> None:
+def cursor_command(alias: str, path: str | None = None) -> None:
     """Open Cursor editor with remote SSH connection to pod."""
     try:
         pod_manager = get_pod_manager()
         pod_manager.get_pod_id(alias)  # Validate alias exists
 
         import subprocess
+
+        # Use configured default if path not provided
+        if path is None:
+            configured_path = pod_manager.get_pod_config_value(alias, "cursor_path")
+            path = configured_path or "/workspace"
 
         remote_uri = f"vscode-remote://ssh-remote+{alias}{path}"
         console.print(f"🖥️  Opening Cursor at '[bold]{alias}:{path}[/bold]'…")
@@ -599,6 +604,73 @@ def shell_command(alias: str) -> None:
 
         console.print(f"🐚 Connecting to '[bold]{alias}[/bold]'…")
         subprocess.run(["ssh", "-A", alias], check=False)
+
+    except Exception as e:
+        handle_cli_error(e)
+
+
+def config_set_command(alias: str, key: str, value: str | None) -> None:
+    """Set a configuration value for a pod."""
+    try:
+        pod_manager = get_pod_manager()
+
+        # Validate key
+        valid_keys = ["cursor_path"]
+        if key not in valid_keys:
+            console.print(
+                f"❌ Invalid config key: {key}. Valid keys: {', '.join(valid_keys)}",
+                style="red",
+            )
+            raise typer.Exit(1) from None
+
+        pod_manager.set_pod_config(alias, key, value)
+
+        if value is None:
+            console.print(f"✅ Cleared '{key}' for '[bold]{alias}[/bold]'")
+        else:
+            console.print(f"✅ Set '{key}' = '{value}' for '[bold]{alias}[/bold]'")
+
+    except Exception as e:
+        handle_cli_error(e)
+
+
+def config_get_command(alias: str, key: str) -> None:
+    """Get a configuration value for a pod."""
+    try:
+        pod_manager = get_pod_manager()
+
+        # Validate key
+        valid_keys = ["cursor_path"]
+        if key not in valid_keys:
+            console.print(
+                f"❌ Invalid config key: {key}. Valid keys: {', '.join(valid_keys)}",
+                style="red",
+            )
+            raise typer.Exit(1) from None
+
+        value = pod_manager.get_pod_config_value(alias, key)
+
+        if value is None:
+            console.print(f"{key}: [dim](not set)[/dim]")
+        else:
+            console.print(f"{key}: [bold]{value}[/bold]")
+
+    except Exception as e:
+        handle_cli_error(e)
+
+
+def config_list_command(alias: str) -> None:
+    """List all configuration values for a pod."""
+    try:
+        pod_manager = get_pod_manager()
+        config_values = pod_manager.get_pod_config(alias)
+
+        console.print(f"Configuration for '[bold]{alias}[/bold]':")
+        for key, value in config_values.items():
+            if value is None:
+                console.print(f"  {key}: [dim](not set)[/dim]")
+            else:
+                console.print(f"  {key}: [bold]{value}[/bold]")
 
     except Exception as e:
         handle_cli_error(e)

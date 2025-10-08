@@ -38,9 +38,10 @@ The workflow is roughly:
 4. **List pods**: `rp list` shows you all rp's managed pods and their status (running, stopped, or invalid if they don't exist)
 5. **Connect to pods**:
    - `rp shell <alias>` opens an interactive SSH shell to the pod
-   - `rp cursor <alias> [path]` opens Cursor editor connected to the pod (defaults to /workspace)
-6. **Stop pods**: `rp stop <alias>` stops a pod. Alternatively you can schedule shutting down a pod, see [Scheduling](#scheduling)
-7. **Destroy pods**: `rp destroy <alias>` terminates a pod (stopping it too if it's still running)
+   - `rp cursor <alias> [path]` opens Cursor editor connected to the pod (defaults to /workspace or configured path)
+6. **Configure pods**: Set per-pod configuration like default Cursor paths, see [Pod Configuration](#pod-configuration)
+7. **Stop pods**: `rp stop <alias>` stops a pod. Alternatively you can schedule shutting down a pod, see [Scheduling](#scheduling)
+8. **Destroy pods**: `rp destroy <alias>` terminates a pod (stopping it too if it's still running)
 
 The first time you run a `rp` command, it will ask you to provide your runpod API key. It will save this in `~/.config/rp/runpod_api_key`. If you don't want this saved in plaintext locally, make sure that the `RUNPOD_API_KEY` env var is set when you run `rp`.
 
@@ -63,6 +64,26 @@ rp template delete ml-training
 ```
 
 Templates automatically find the lowest available number for the `{i}` placeholder, so if `ml-training-1` exists, the next pod will be `ml-training-2`.
+
+### Pod Configuration
+
+You can configure per-pod settings like default paths for Cursor:
+
+```bash
+# Set a default Cursor path for a pod
+rp config set alex-ast-1 cursor_path /workspace/ast-goodfire
+
+# Get a specific config value
+rp config get alex-ast-1 cursor_path
+
+# List all configuration for a pod
+rp config list alex-ast-1
+
+# Clear a config value
+rp config set alex-ast-1 cursor_path
+```
+
+When you run `rp cursor alex-ast-1` without specifying a path, it will use the configured default path instead of `/workspace`.
 
 ### Scheduling
 
