@@ -14,6 +14,7 @@ from runpod_cli_wrapper.cli.commands import (
     add_command,
     clean_command,
     create_command,
+    cursor_command,
     delete_command,
     destroy_command,
     list_command,
@@ -21,6 +22,7 @@ from runpod_cli_wrapper.cli.commands import (
     schedule_clean_command,
     schedule_list_command,
     scheduler_tick_command,
+    shell_command,
     start_command,
     stop_command,
     template_create_command,
@@ -226,6 +228,23 @@ def template_delete(
 def scheduler_tick():
     """Execute due scheduled tasks (intended to be run by launchd every minute)."""
     scheduler_tick_command()
+
+
+@app.command()
+def cursor(
+    alias: str = typer.Argument(..., help="Pod alias to connect to"),
+    path: str = typer.Argument("/workspace", help="Remote path to open"),
+):
+    """Open Cursor editor with remote SSH connection to pod."""
+    cursor_command(alias, path)
+
+
+@app.command()
+def shell(
+    alias: str = typer.Argument(..., help="Pod alias to connect to"),
+):
+    """Open an interactive SSH shell to the pod."""
+    shell_command(alias)
 
 
 def main():

@@ -7,6 +7,7 @@ providing clean separation between CLI interface and business logic.
 
 from datetime import datetime, timedelta
 
+import typer
 from dateutil import tz
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
@@ -559,6 +560,45 @@ def template_delete_command(identifier: str, missing_ok: bool = False) -> None:
             console.print(
                 f"i  Template '[bold]{identifier}[/bold]' not found; nothing to do."
             )
+
+    except Exception as e:
+        handle_cli_error(e)
+
+
+def cursor_command(alias: str, path: str = "/workspace") -> None:
+    """Open Cursor editor with remote SSH connection to pod."""
+    try:
+        pod_manager = get_pod_manager()
+        pod_manager.get_pod_id(alias)  # Validate alias exists
+
+        import subprocess
+
+        remote_uri = f"vscode-remote://ssh-remote+{alias}{path}"
+        console.print(f"🖥️  Opening Cursor at '[bold]{alias}:{path}[/bold]'…")
+
+        subprocess.run(["cursor", "--folder-uri", remote_uri], check=True)
+        console.print("✅ Cursor opened successfully.")
+
+    except FileNotFoundError:
+        console.print(
+            "❌ Cursor command not found. Please ensure Cursor is installed and in your PATH.",
+            style="red",
+        )
+        raise typer.Exit(1) from None
+    except Exception as e:
+        handle_cli_error(e)
+
+
+def shell_command(alias: str) -> None:
+    """Open an interactive SSH shell to the pod."""
+    try:
+        pod_manager = get_pod_manager()
+        pod_manager.get_pod_id(alias)  # Validate alias exists
+
+        import subprocess
+
+        console.print(f"🐚 Connecting to '[bold]{alias}[/bold]'…")
+        subprocess.run(["ssh", "-A", alias], check=False)
 
     except Exception as e:
         handle_cli_error(e)

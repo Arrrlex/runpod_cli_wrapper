@@ -36,8 +36,11 @@ The workflow is roughly:
    - Use template: `rp create --template my-template` (automatically creates `my-pod-1`, `my-pod-2`, etc.)
 3. **Add existing pods**: For any pods created using the RunPod website, `rp add <alias> <id>` adds it to `rp`'s local config
 4. **List pods**: `rp list` shows you all rp's managed pods and their status (running, stopped, or invalid if they don't exist)
-5. **Stop pods**: `rp stop <alias>` stops a pod. Alternatively you can schedule shutting down a pod, see [Scheduling](#scheduling)
-6. **Destroy pods**: `rp destroy <alias>` terminates a pod (stopping it too if it's still running)
+5. **Connect to pods**:
+   - `rp shell <alias>` opens an interactive SSH shell to the pod
+   - `rp cursor <alias> [path]` opens Cursor editor connected to the pod (defaults to /workspace)
+6. **Stop pods**: `rp stop <alias>` stops a pod. Alternatively you can schedule shutting down a pod, see [Scheduling](#scheduling)
+7. **Destroy pods**: `rp destroy <alias>` terminates a pod (stopping it too if it's still running)
 
 The first time you run a `rp` command, it will ask you to provide your runpod API key. It will save this in `~/.config/rp/runpod_api_key`. If you don't want this saved in plaintext locally, make sure that the `RUNPOD_API_KEY` env var is set when you run `rp`.
 
