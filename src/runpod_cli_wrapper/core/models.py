@@ -186,6 +186,9 @@ class PodTemplate(BaseModel):
     storage_spec: str = Field(
         description="Storage specification string (e.g., '500GB')"
     )
+    image: str | None = Field(
+        default=None, description="Docker image to use (None uses default)"
+    )
 
     @field_validator("alias_template")
     @classmethod

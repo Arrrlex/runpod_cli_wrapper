@@ -276,12 +276,18 @@ class PodManager:
         gpu_spec = parse_gpu_spec(template.gpu_spec)
         volume_gb = parse_storage_spec(template.storage_spec)
 
-        request = PodCreateRequest(
-            alias=alias,
-            gpu_spec=gpu_spec,
-            volume_gb=volume_gb,
-            force=force,
-            dry_run=dry_run,
-        )
+        request_kwargs = {
+            "alias": alias,
+            "gpu_spec": gpu_spec,
+            "volume_gb": volume_gb,
+            "force": force,
+            "dry_run": dry_run,
+        }
+
+        # Add image if specified in template
+        if template.image is not None:
+            request_kwargs["image"] = template.image
+
+        request = PodCreateRequest(**request_kwargs)
 
         return self.create_pod(request)

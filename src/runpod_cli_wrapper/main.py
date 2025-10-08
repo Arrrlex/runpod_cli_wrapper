@@ -64,6 +64,11 @@ def create(
     template: str = typer.Option(
         None, "--template", help="Use a pod template (e.g., 'alex-ast')"
     ),
+    image: str = typer.Option(
+        None,
+        "--image",
+        help="Docker image to use (default: runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04)",
+    ),
     force: bool = typer.Option(
         False, "--force", "-f", help="Overwrite alias if it exists"
     ),
@@ -72,7 +77,7 @@ def create(
     ),
 ):
     """Create a new RunPod using PyTorch 2.8 image, add alias, wait for SSH, and run setup scripts."""
-    create_command(alias, gpu, storage, template, force, dry_run)
+    create_command(alias, gpu, storage, template, image, force, dry_run)
 
 
 @app.command()
@@ -187,12 +192,17 @@ def template_create(
     storage: str = typer.Option(
         ..., "--storage", help="Volume size like '500GB' or '1TB'"
     ),
+    image: str = typer.Option(
+        None,
+        "--image",
+        help="Docker image to use (default: runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04)",
+    ),
     force: bool = typer.Option(
         False, "--force", "-f", help="Overwrite template if it exists"
     ),
 ):
     """Create a new pod template."""
-    template_create_command(identifier, alias_template, gpu, storage, force)
+    template_create_command(identifier, alias_template, gpu, storage, image, force)
 
 
 @template_app.command("list")

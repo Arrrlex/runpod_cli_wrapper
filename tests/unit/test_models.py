@@ -231,6 +231,30 @@ class TestPodTemplate:
                 storage_spec="500GB",
             )
 
+    def test_template_with_custom_image(self):
+        """Test creating a template with a custom image."""
+        custom_image = "runpod/pytorch:2.1.0-py3.10-cuda11.8.0-devel"
+        template = PodTemplate(
+            identifier="custom-image-template",
+            alias_template="custom-{i}",
+            gpu_spec="1xRTX4090",
+            storage_spec="100GB",
+            image=custom_image,
+        )
+
+        assert template.image == custom_image
+
+    def test_template_default_image(self):
+        """Test template without image uses None (will use default)."""
+        template = PodTemplate(
+            identifier="default-image",
+            alias_template="default-{i}",
+            gpu_spec="1xA100",
+            storage_spec="200GB",
+        )
+
+        assert template.image is None
+
 
 class TestAppConfig:
     """Test application configuration model."""

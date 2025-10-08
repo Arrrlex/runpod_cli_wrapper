@@ -62,6 +62,7 @@ def create_command(  # noqa: PLR0915  # Function complexity acceptable for main 
     gpu: str | None = None,
     storage: str | None = None,
     template: str | None = None,
+    image: str | None = None,
     force: bool = False,
     dry_run: bool = False,
 ) -> None:
@@ -121,13 +122,19 @@ def create_command(  # noqa: PLR0915  # Function complexity acceptable for main 
             gpu_spec = parse_gpu_spec(gpu)
             volume_gb = parse_storage_spec(storage)
 
-            request = PodCreateRequest(
-                alias=alias,
-                gpu_spec=gpu_spec,
-                volume_gb=volume_gb,
-                force=force,
-                dry_run=dry_run,
-            )
+            request_kwargs = {
+                "alias": alias,
+                "gpu_spec": gpu_spec,
+                "volume_gb": volume_gb,
+                "force": force,
+                "dry_run": dry_run,
+            }
+
+            # Add image if specified
+            if image is not None:
+                request_kwargs["image"] = image
+
+            request = PodCreateRequest(**request_kwargs)
 
             console.print(
                 f"🚀 Creating pod '[bold]{alias}[/bold]': "
@@ -469,16 +476,27 @@ def scheduler_tick_command() -> None:
 
 
 def template_create_command(
-    identifier: str, alias_template: str, gpu: str, storage: str, force: bool = False
+    identifier: str,
+    alias_template: str,
+    gpu: str,
+    storage: str,
+    image: str | None = None,
+    force: bool = False,
 ) -> None:
     """Create a new pod template."""
     try:
-        template = PodTemplate(
-            identifier=identifier,
-            alias_template=alias_template,
-            gpu_spec=gpu,
-            storage_spec=storage,
-        )
+        template_kwargs = {
+            "identifier": identifier,
+            "alias_template": alias_template,
+            "gpu_spec": gpu,
+            "storage_spec": storage,
+        }
+
+        # Add image if specified
+        if image is not None:
+            template_kwargs["image"] = image
+
+        template = PodTemplate(**template_kwargs)
 
         pod_manager = get_pod_manager()
         pod_manager.add_template(template, force)
@@ -487,6 +505,8 @@ def template_create_command(
         console.print(f"   Alias template: {alias_template}")
         console.print(f"   GPU: {gpu}")
         console.print(f"   Storage: {storage}")
+        if image is not None:
+            console.print(f"   Image: {image}")
 
     except Exception as e:
         handle_cli_error(e)
@@ -509,13 +529,16 @@ def template_list_command() -> None:
         table.add_column("Alias Template", style="magenta")
         table.add_column("GPU", style="green")
         table.add_column("Storage", style="yellow")
+        table.add_column("Image", style="blue")
 
         for template in templates:
+            image_display = template.image if template.image else "(default)"
             table.add_row(
                 template.identifier,
                 template.alias_template,
                 template.gpu_spec,
                 template.storage_spec,
+                image_display,
             )
 
         console.print(table)
