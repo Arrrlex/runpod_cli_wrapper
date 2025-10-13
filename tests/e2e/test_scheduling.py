@@ -18,11 +18,11 @@ class TestScheduling:
         pod_id = shared_test_pod["pod_id"]
 
         # Add pod to alias system
-        result = cli_runner(["add", alias, pod_id])
+        result = cli_runner(["track", alias, pod_id])
         assert result.returncode == 0
 
         # Schedule stop in 5 minutes (far enough to cancel)
-        result = cli_runner(["stop", alias, "--schedule-in", "5m"])
+        result = cli_runner(["stop", alias, "--in", "5m"])
         assert result.returncode == 0
         assert "Scheduled stop" in result.stdout
 
@@ -58,7 +58,7 @@ class TestScheduling:
             assert "cancelled" in result.stdout.lower()
 
         # Clean up
-        result = cli_runner(["delete", alias])
+        result = cli_runner(["untrack", alias])
         assert result.returncode == 0
 
     def test_schedule_at_time_format(self, cli_runner, shared_test_pod):
@@ -67,14 +67,14 @@ class TestScheduling:
         pod_id = shared_test_pod["pod_id"]
 
         # Add pod to alias system
-        result = cli_runner(["add", alias, pod_id])
+        result = cli_runner(["track", alias, pod_id])
         assert result.returncode == 0
 
         # Test scheduling at specific time (tomorrow to avoid immediate execution)
         tomorrow = datetime.now(tz.tzlocal()) + timedelta(days=1)
         time_str = tomorrow.strftime("%H:%M")
 
-        result = cli_runner(["stop", alias, "--schedule-at", f"tomorrow {time_str}"])
+        result = cli_runner(["stop", alias, "--at", f"tomorrow {time_str}"])
         assert result.returncode == 0
         assert "Scheduled stop" in result.stdout
 
@@ -88,7 +88,7 @@ class TestScheduling:
         assert result.returncode == 0
 
         # Clean up alias
-        result = cli_runner(["delete", alias])
+        result = cli_runner(["untrack", alias])
         assert result.returncode == 0
 
     def test_dry_run_scheduling(self, cli_runner, shared_test_pod):
@@ -97,7 +97,7 @@ class TestScheduling:
         pod_id = shared_test_pod["pod_id"]
 
         # Add pod to alias system
-        result = cli_runner(["add", alias, pod_id])
+        result = cli_runner(["track", alias, pod_id])
         assert result.returncode == 0
 
         # Test dry-run immediate stop
@@ -107,7 +107,7 @@ class TestScheduling:
         assert "Would stop" in result.stdout
 
         # Test dry-run scheduled stop
-        result = cli_runner(["stop", alias, "--schedule-in", "1h", "--dry-run"])
+        result = cli_runner(["stop", alias, "--in", "1h", "--dry-run"])
         assert result.returncode == 0
         assert "DRY RUN" in result.stdout
         assert "Would schedule stop" in result.stdout
@@ -119,7 +119,7 @@ class TestScheduling:
         assert alias not in result.stdout or "No scheduled tasks" in result.stdout
 
         # Clean up
-        result = cli_runner(["delete", alias])
+        result = cli_runner(["untrack", alias])
         assert result.returncode == 0
 
     def test_invalid_schedule_formats(self, cli_runner, shared_test_pod):
@@ -128,25 +128,23 @@ class TestScheduling:
         pod_id = shared_test_pod["pod_id"]
 
         # Add pod to alias system
-        result = cli_runner(["add", alias, pod_id])
+        result = cli_runner(["track", alias, pod_id])
         assert result.returncode == 0
 
         # Test invalid duration format
-        result = cli_runner(["stop", alias, "--schedule-in", "invalid"])
+        result = cli_runner(["stop", alias, "--in", "invalid"])
         assert result.returncode != 0
         assert "Invalid" in result.stderr
 
         # Test invalid time format
-        result = cli_runner(["stop", alias, "--schedule-at", "25:99"])
+        result = cli_runner(["stop", alias, "--at", "25:99"])
         assert result.returncode != 0
 
         # Test conflicting options
-        result = cli_runner(
-            ["stop", alias, "--schedule-at", "tomorrow 10:00", "--schedule-in", "1h"]
-        )
+        result = cli_runner(["stop", alias, "--at", "tomorrow 10:00", "--in", "1h"])
         assert result.returncode != 0
         assert "mutually exclusive" in result.stderr
 
         # Clean up
-        result = cli_runner(["delete", alias])
+        result = cli_runner(["untrack", alias])
         assert result.returncode == 0

@@ -96,7 +96,7 @@ class TestPodLifecycle:
         pod_id = shared_test_pod["pod_id"]
 
         # 1. Add existing pod with alias
-        result = cli_runner(["add", test_alias, pod_id])
+        result = cli_runner(["track", test_alias, pod_id])
         assert result.returncode == 0
         assert "Saved alias" in result.stdout
         assert test_alias in result.stdout
@@ -109,12 +109,12 @@ class TestPodLifecycle:
         assert pod_id in result.stdout
 
         # 3. Test force overwrite
-        result = cli_runner(["add", test_alias, pod_id, "--force"])
+        result = cli_runner(["track", test_alias, pod_id, "--force"])
         assert result.returncode == 0
         assert "Saved alias" in result.stdout
 
         # 4. Delete the alias
-        result = cli_runner(["delete", test_alias])
+        result = cli_runner(["untrack", test_alias])
         assert result.returncode == 0
         assert "Removed alias" in result.stdout
 
@@ -130,7 +130,7 @@ class TestPodLifecycle:
         pod_details = shared_test_pod["pod_details"]  # noqa: F841
 
         # First add the pod to our alias system
-        result = cli_runner(["add", "ssh-test", shared_test_pod["pod_id"]])
+        result = cli_runner(["track", "ssh-test", shared_test_pod["pod_id"]])
         assert result.returncode == 0
 
         # Start the pod to ensure it's running and SSH is configured
@@ -165,7 +165,7 @@ class TestPodLifecycle:
         ), f"Unexpected SSH error: {ssh_result.stderr}"
 
         # Clean up
-        result = cli_runner(["delete", "ssh-test"])
+        result = cli_runner(["untrack", "ssh-test"])
         assert result.returncode == 0
 
 
@@ -197,23 +197,23 @@ class TestCommandEdgeCases:
         pod_id = shared_test_pod["pod_id"]
 
         # Add alias first time
-        result = cli_runner(["add", alias, pod_id])
+        result = cli_runner(["track", alias, pod_id])
         assert result.returncode == 0
 
         # Try to add same alias again without force
-        result = cli_runner(["add", alias, pod_id])
+        result = cli_runner(["track", alias, pod_id])
         assert result.returncode != 0
         assert "already exists" in result.stderr
 
         # Clean up
-        result = cli_runner(["delete", alias])
+        result = cli_runner(["untrack", alias])
         assert result.returncode == 0
 
     def test_clean_command(self, cli_runner):
         """Test the clean command removes invalid aliases."""
         # Add a fake invalid pod ID
         fake_pod_id = "invalid-pod-id-12345"
-        result = cli_runner(["add", "invalid-pod", fake_pod_id])
+        result = cli_runner(["track", "invalid-pod", fake_pod_id])
         assert result.returncode == 0
 
         # Run clean command

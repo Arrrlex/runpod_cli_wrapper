@@ -55,6 +55,7 @@ class Pod(BaseModel):
     image: str | None = Field(None, description="Docker image used")
     gpu_spec: GPUSpec | None = Field(None, description="GPU configuration")
     volume_gb: int | None = Field(None, description="Storage volume size in GB")
+    container_disk_gb: int | None = Field(None, description="Container disk size in GB")
 
     # Network information (populated when pod is running)
     ip_address: str | None = Field(None, description="Public IP address")
@@ -63,6 +64,10 @@ class Pod(BaseModel):
     # Timestamps
     created_at: datetime | None = Field(None, description="Pod creation time")
     updated_at: datetime | None = Field(None, description="Last update time")
+
+    # Cost and usage
+    cost_per_hour: float | None = Field(None, description="Cost per hour in USD")
+    uptime_seconds: int | None = Field(None, description="Total uptime in seconds")
 
     @classmethod
     def from_alias_and_id(
@@ -97,14 +102,43 @@ class Pod(BaseModel):
                     ssh_port = port.get("publicPort")
                     break
 
+        # Extract GPU information
+        gpu_spec = None
+        gpu_count = pod_data.get("gpuCount")
+        machine = pod_data.get("machine", {})
+        if machine and isinstance(machine, dict):
+            gpu_type_id = machine.get("gpuTypeId", "")
+            gpu_display_name = machine.get("gpuDisplayName", "")
+            if gpu_count and (gpu_type_id or gpu_display_name):
+                # Extract model name from display name or ID
+                model = gpu_display_name or gpu_type_id
+                # Clean up model name (e.g., "NVIDIA H100 PCIe" -> "H100 PCIE")
+                model = model.replace("NVIDIA ", "").replace(" ", "")
+                gpu_spec = GPUSpec(count=gpu_count, model=model)
+
+        # Extract storage information
+        volume_gb = pod_data.get("volumeInGb")
+        container_disk_gb = pod_data.get("containerDiskInGb")
+
+        # Extract cost information
+        cost_per_hour = pod_data.get("costPerHr")
+
+        # Extract uptime
+        uptime_seconds = pod_data.get("uptimeSeconds")
+
         return cls(
             id=pod_id,
             alias=alias,
             status=status,
             name=pod_data.get("name"),
             image=pod_data.get("imageName"),
+            gpu_spec=gpu_spec,
+            volume_gb=volume_gb,
+            container_disk_gb=container_disk_gb,
             ip_address=ip_address,
             ssh_port=ssh_port,
+            cost_per_hour=cost_per_hour,
+            uptime_seconds=uptime_seconds,
         )
 
 

@@ -8,6 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Key documentation**: `docs.md` contains comprehensive technical documentation including all commands, configuration files, and internal behavior. Read this first for complete context.
 
+**IMPORTANT**: When making implementation changes, always update `docs.md` and `README.md` to reflect the changes. These are the primary user-facing documentation and must stay in sync with the code.
+
 ## Development Commands
 
 ### Environment Setup
@@ -155,20 +157,20 @@ Both `PodManager` and `Scheduler` follow pattern:
 
 ### E2E Test Patterns
 
-E2E tests use a shared pod fixture (`shared_test_pod`) to avoid creating pods for every test. Tests add aliases temporarily and clean up after themselves:
+E2E tests use a shared pod fixture (`shared_test_pod`) to avoid creating pods for every test. Tests track aliases temporarily and clean up after themselves:
 
 ```python
 def test_something(cli_runner, shared_test_pod):
     alias = "test-alias"
     pod_id = shared_test_pod["pod_id"]
 
-    # Add alias
-    result = cli_runner(["add", alias, pod_id])
+    # Track alias
+    result = cli_runner(["track", alias, pod_id])
 
     # ... test logic ...
 
     # Clean up
-    result = cli_runner(["delete", alias])
+    result = cli_runner(["untrack", alias])
 ```
 
 ## Important Constraints

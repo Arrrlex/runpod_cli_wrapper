@@ -260,14 +260,21 @@ class PodManager:
         return sorted(self.config.pod_templates.values(), key=lambda t: t.identifier)
 
     def create_pod_from_template(
-        self, template_identifier: str, force: bool = False, dry_run: bool = False
+        self,
+        template_identifier: str,
+        force: bool = False,
+        dry_run: bool = False,
+        alias_override: str | None = None,
     ) -> Pod:
-        """Create a pod using a template, finding the next available alias index."""
+        """Create a pod using a template, finding the next available alias index or using provided alias."""
         template = self.get_template(template_identifier)
 
-        # Find the next available index
-        next_index = self.config.find_next_alias_index(template.alias_template)
-        alias = template.alias_template.format(i=next_index)
+        # Use alias override if provided, otherwise find next available index
+        if alias_override:
+            alias = alias_override
+        else:
+            next_index = self.config.find_next_alias_index(template.alias_template)
+            alias = template.alias_template.format(i=next_index)
 
         # Create the pod request
         from rp.cli.utils import parse_gpu_spec, parse_storage_spec

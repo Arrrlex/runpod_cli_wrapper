@@ -86,10 +86,11 @@ Create a new pod and add it to local configuration.
 ```bash
 rp create <alias> --gpu <gpu_spec> --storage <size> [options]
 rp create --template <template_id>
+rp create <alias> --template <template_id>
 ```
 
 **Arguments:**
-- `<alias>`: SSH host alias (e.g., `my-pod-1`)
+- `<alias>`: SSH host alias (e.g., `my-pod-1`) - optional when using `--template`
 
 **Options:**
 - `--gpu <spec>`: GPU specification (e.g., `2xA100`, `1xH100`, `4xRTX4090`)
@@ -108,8 +109,11 @@ rp create my-pod --gpu 2xA100 --storage 500GB
 # Create with custom image
 rp create my-pod --gpu 1xH100 --storage 1TB --image nvidia/cuda:12.0.0-devel-ubuntu22.04
 
-# Create from template
+# Create from template (auto-numbered alias)
 rp create --template ml-training
+
+# Create from template with custom alias (overrides template naming)
+rp create custom-pod --template ml-training
 
 # Dry run to preview
 rp create my-pod --gpu 2xA100 --storage 500GB --dry-run
@@ -162,17 +166,17 @@ rp stop <alias> [options]
 - `<alias>`: Pod alias to stop
 
 **Options:**
-- `--schedule-at <time>`: Schedule stop at a specific time
-- `--schedule-in <duration>`: Schedule stop after a duration
+- `--at <time>`: Schedule stop at a specific time
+- `--in <duration>`: Schedule stop after a duration
 - `--dry-run`: Show what would happen without performing the action
 
-**Time Formats (--schedule-at):**
+**Time Formats (--at):**
 - `"HH:MM"` - Today at specified time (or tomorrow if past)
 - `"YYYY-MM-DD HH:MM"` - Specific date and time
 - `"tomorrow HH:MM"` - Tomorrow at specified time
 - Any format parseable by Python's `dateutil.parser`
 
-**Duration Formats (--schedule-in):**
+**Duration Formats (--in):**
 - `"3h"` - 3 hours
 - `"45m"` - 45 minutes
 - `"1d2h30m"` - 1 day, 2 hours, 30 minutes
@@ -184,16 +188,16 @@ rp stop <alias> [options]
 rp stop my-pod
 
 # Stop at 10 PM today (or tomorrow if past 10 PM)
-rp stop my-pod --schedule-at "22:00"
+rp stop my-pod --at "22:00"
 
 # Stop tomorrow morning
-rp stop my-pod --schedule-at "tomorrow 09:30"
+rp stop my-pod --at "tomorrow 09:30"
 
 # Stop in 2 hours
-rp stop my-pod --schedule-in "2h"
+rp stop my-pod --in "2h"
 
 # Stop in 1 day and 3 hours
-rp stop my-pod --schedule-in "1d3h"
+rp stop my-pod --in "1d3h"
 ```
 
 **Behavior (immediate):**
@@ -213,21 +217,29 @@ Terminate a pod, remove it from configuration, and clean up SSH config.
 
 **Syntax:**
 ```bash
-rp destroy <alias>
+rp destroy <alias> [options]
 ```
 
 **Arguments:**
 - `<alias>`: Pod alias to destroy
 
-**Example:**
+**Options:**
+- `--force, -f`: Skip confirmation prompt
+
+**Examples:**
 ```bash
+# Destroy with confirmation prompt
 rp destroy my-pod
+
+# Destroy without confirmation
+rp destroy my-pod --force
 ```
 
 **Behavior:**
-1. Terminates pod via RunPod API (stops first if running)
-2. Removes alias from local configuration
-3. Removes SSH config entry
+1. Prompts for confirmation (unless --force is used)
+2. Terminates pod via RunPod API (stops first if running)
+3. Removes alias from local configuration
+4. Removes SSH config entry
 
 **Warning:** This permanently deletes the pod and all data on it.
 
@@ -235,13 +247,13 @@ rp destroy my-pod
 
 ### Alias Management
 
-#### `rp add`
+#### `rp track`
 
-Add an existing RunPod pod to local configuration.
+Track an existing RunPod pod with an alias.
 
 **Syntax:**
 ```bash
-rp add <alias> <pod_id> [options]
+rp track <alias> <pod_id> [options]
 ```
 
 **Arguments:**
@@ -253,19 +265,19 @@ rp add <alias> <pod_id> [options]
 
 **Example:**
 ```bash
-# Add a pod created through RunPod website
-rp add my-existing-pod 89qgenjznh5t2j
+# Track a pod created through RunPod website
+rp track my-existing-pod 89qgenjznh5t2j
 ```
 
 ---
 
-#### `rp delete`
+#### `rp untrack`
 
-Remove an alias from local configuration (does not terminate the pod).
+Stop tracking a pod (removes alias mapping, does not terminate the pod).
 
 **Syntax:**
 ```bash
-rp delete <alias> [options]
+rp untrack <alias> [options]
 ```
 
 **Arguments:**
@@ -276,7 +288,7 @@ rp delete <alias> [options]
 
 **Example:**
 ```bash
-rp delete my-pod
+rp untrack my-pod
 ```
 
 ---
@@ -306,9 +318,58 @@ my-pod-2        k3nf83hdk3nd92  stopped   -
 
 ---
 
+#### `rp show`
+
+Show detailed information about a specific pod.
+
+**Syntax:**
+```bash
+rp show <alias>
+```
+
+**Arguments:**
+- `<alias>`: Pod alias to show details for
+
+**Example:**
+```bash
+rp show my-pod
+```
+
+**Output includes:**
+- Pod ID and status
+- GPU type and count
+- Storage (volume and container disk)
+- Cost per hour and total cost (based on uptime)
+- Uptime
+- IP address and SSH port (if running)
+- Docker image
+- Scheduled tasks (if any)
+
+**Example output:**
+```
+Pod Details: my-pod
+============================================================
+ID:        89qgenjznh5t2j
+Status:    RUNNING
+GPU:       2xH100PCIE
+Storage:   500GB
+Container:  20GB
+Cost:      $3.200/hour
+Uptime:    5h 23m
+Total Cost: $17.23
+IP:        123.45.67.89:12345
+Image:     runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn...
+
+Scheduled Tasks:
+  • stop at 2025-01-15 22:00 (id=550e8400)
+============================================================
+```
+
+---
+
 #### `rp clean`
 
-Remove invalid aliases and prune orphaned SSH config entries.
+Remove invalid aliases, prune orphaned SSH config entries, and clean completed tasks.
 
 **Syntax:**
 ```bash
@@ -319,6 +380,9 @@ rp clean
 1. Queries RunPod API for each alias
 2. Removes aliases for pods that no longer exist
 3. Removes SSH config entries for removed aliases
+4. Removes completed and cancelled scheduled tasks
+
+**Note:** This command runs automatically after every API command (create, start, stop, destroy) to keep things tidy.
 
 ---
 
@@ -566,18 +630,7 @@ rp schedule cancel <task_id>
 rp schedule cancel 550e8400-e29b-41d4-a716-446655440000
 ```
 
----
-
-#### `rp schedule clean`
-
-Remove completed and cancelled tasks from the schedule.
-
-**Syntax:**
-```bash
-rp schedule clean
-```
-
-**Note:** This happens automatically on each command run, but you can run it manually to clean up the schedule.
+**Note:** Completed and cancelled tasks are automatically cleaned up by `rp clean`, which runs after every API command.
 
 ---
 
@@ -920,9 +973,12 @@ rp stop my-pod
 # Create a template
 rp template create training "train-{i}" --gpu 2xA100 --storage 1TB
 
-# Create pods from template
+# Create pods from template (auto-numbered)
 rp create --template training  # Creates train-1
 rp create --template training  # Creates train-2
+
+# Or create with custom alias
+rp create my-special-pod --template training  # Uses template config, custom name
 
 # List all pods
 rp list
@@ -937,7 +993,7 @@ rp list
 rp create my-pod --gpu 2xH100 --storage 1TB
 
 # Schedule it to stop in 8 hours
-rp stop my-pod --schedule-in "8h"
+rp stop my-pod --in "8h"
 
 # Check scheduled tasks
 rp schedule list
@@ -951,8 +1007,8 @@ rp schedule cancel <task-id>
 ### Managing Existing Pods
 
 ```bash
-# Add a pod created on RunPod website
-rp add existing-pod 89qgenjznh5t2j
+# Track a pod created on RunPod website
+rp track existing-pod 89qgenjznh5t2j
 
 # List all pods
 rp list
@@ -1059,7 +1115,7 @@ Some commands support `--force` to overwrite existing data:
 
 ```bash
 # Overwrite existing alias
-rp add my-pod new-pod-id --force
+rp track my-pod new-pod-id --force
 
 # Overwrite existing template
 rp template create training "train-{i}" --gpu 4xA100 --storage 2TB --force
@@ -1079,7 +1135,7 @@ Preview operations without executing them:
 rp create my-pod --gpu 2xA100 --storage 500GB --dry-run
 
 # See what would be scheduled
-rp stop my-pod --schedule-in "2h" --dry-run
+rp stop my-pod --in "2h" --dry-run
 ```
 
 ---
@@ -1220,6 +1276,15 @@ rp create --template training  # Creates train-1 (reuses lowest available)
 ```
 
 The algorithm finds the lowest `i ≥ 1` where the formatted alias doesn't exist.
+
+**Alias Override:**
+You can also override the template's alias format by providing an explicit alias:
+
+```bash
+rp create custom-name --template training  # Uses template's GPU/storage, custom alias
+```
+
+This creates a pod with the template's configuration (GPU, storage, image, etc.) but with your specified alias instead of the auto-numbered one.
 
 ### SSH Config Management
 
@@ -1387,7 +1452,7 @@ rp config set dev-1 path /workspace/myproject
 rp create --template dev           # Create dev-1
 rp cursor dev-1                     # Open Cursor
 # ... work on project ...
-rp stop dev-1 --schedule-in "8h"    # Auto-stop in 8 hours
+rp stop dev-1 --in "8h"    # Auto-stop in 8 hours
 
 # Next day
 rp start dev-1                      # Resume working
@@ -1407,8 +1472,8 @@ rp create --template train  # train-1
 rp create --template train  # train-2
 
 # Schedule automatic shutdown
-rp stop train-1 --schedule-in "24h"
-rp stop train-2 --schedule-in "24h"
+rp stop train-1 --in "24h"
+rp stop train-2 --in "24h"
 
 # Monitor progress
 rp shell train-1
@@ -1466,8 +1531,8 @@ scp ~/.env.production $POD_HOST:/workspace/.env
 | `rp start` | Start a stopped pod |
 | `rp stop` | Stop a running pod |
 | `rp destroy` | Terminate a pod permanently |
-| `rp add` | Add existing pod to configuration |
-| `rp delete` | Remove alias from configuration |
+| `rp track` | Track existing pod with an alias |
+| `rp untrack` | Stop tracking pod (remove alias) |
 | `rp list` | List all pods with status |
 | `rp clean` | Remove invalid aliases and SSH config |
 | `rp cursor` | Open Cursor editor connected to pod |

@@ -11,26 +11,26 @@ import typer
 from typer.core import TyperGroup
 
 from rp.cli.commands import (
-    add_command,
     clean_command,
     config_get_command,
     config_list_command,
     config_set_command,
     create_command,
     cursor_command,
-    delete_command,
     destroy_command,
     list_command,
     schedule_cancel_command,
-    schedule_clean_command,
     schedule_list_command,
     scheduler_tick_command,
     shell_command,
+    show_command,
     start_command,
     stop_command,
     template_create_command,
     template_delete_command,
     template_list_command,
+    track_command,
+    untrack_command,
 )
 from rp.core.scheduler import Scheduler
 
@@ -39,7 +39,7 @@ class OrderedGroup(TyperGroup):
     """Custom group to control command order in help."""
 
     def list_commands(self, _):
-        preferred = ["create", "destroy", "add"]
+        preferred = ["create", "destroy", "track"]
         all_cmds = list(self.commands.keys())
         rest = [c for c in all_cmds if c not in preferred]
         return preferred + rest
@@ -106,14 +106,14 @@ def stop(
     host_alias: str = typer.Argument(
         ..., help="SSH host alias for the pod (e.g., runpod-1, local-saes-1)"
     ),
-    schedule_at: str | None = typer.Option(
+    at: str | None = typer.Option(
         None,
-        "--schedule-at",
+        "--at",
         help='Schedule at a time, e.g. "22:00", "2025-01-03 09:30", or "tomorrow 09:30"',
     ),
-    schedule_in: str | None = typer.Option(
+    in_: str | None = typer.Option(
         None,
-        "--schedule-in",
+        "--in",
         help='Schedule after a duration, e.g. "3h", "45m", "1d2h30m"',
     ),
     dry_run: bool = typer.Option(
@@ -123,7 +123,7 @@ def stop(
     ),
 ):
     """Stop a RunPod instance, optionally scheduling for later."""
-    stop_command(host_alias, schedule_at, schedule_in, dry_run)
+    stop_command(host_alias, at, in_, dry_run)
 
 
 @app.command()
@@ -131,13 +131,14 @@ def destroy(
     host_alias: str = typer.Argument(
         ..., help="SSH host alias for the pod (e.g., runpod-1, local-saes-1)"
     ),
+    force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation prompt"),
 ):
     """Terminate a pod, remove SSH config, and delete the alias mapping."""
-    destroy_command(host_alias)
+    destroy_command(host_alias, force)
 
 
 @app.command()
-def add(
+def track(
     alias: str = typer.Argument(
         ..., help="Alias name to assign to an existing RunPod pod id"
     ),
@@ -146,25 +147,33 @@ def add(
         False, "--force", "-f", help="Overwrite if alias already exists"
     ),
 ):
-    """Add or update an existing RunPod pod."""
-    add_command(alias, pod_id, force)
+    """Track an existing RunPod pod with an alias."""
+    track_command(alias, pod_id, force)
 
 
 @app.command()
-def delete(
+def untrack(
     alias: str = typer.Argument(..., help="Alias name to remove"),
     missing_ok: bool = typer.Option(
         False, "--missing-ok", help="Do not error if alias is missing"
     ),
 ):
-    """Delete an alias mapping."""
-    delete_command(alias, missing_ok)
+    """Stop tracking a pod (removes alias mapping)."""
+    untrack_command(alias, missing_ok)
 
 
 @app.command("list")
 def list_aliases():
     """List all aliases as a table: Alias, ID, Status (running, stopped, invalid)."""
     list_command()
+
+
+@app.command()
+def show(
+    alias: str = typer.Argument(..., help="Pod alias to show details for"),
+):
+    """Show detailed information about a pod."""
+    show_command(alias)
 
 
 @app.command()
@@ -183,12 +192,6 @@ def schedule_list():
 def schedule_cancel(task_id: str = typer.Argument(..., help="Task id to cancel")):
     """Cancel a scheduled task by id (sets status to 'cancelled')."""
     schedule_cancel_command(task_id)
-
-
-@schedule_app.command("clean")
-def schedule_clean():
-    """Remove tasks with status 'completed' or 'cancelled'."""
-    schedule_clean_command()
 
 
 @template_app.command("create")

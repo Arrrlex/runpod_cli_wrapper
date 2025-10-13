@@ -55,14 +55,15 @@ The workflow is roughly:
 2. **Or use templates for repeated deployments**:
    - Create a template: `rp template create my-template "my-pod-{i}" --gpu 2xH100 --storage 500GB`
    - Use template: `rp create --template my-template` (automatically creates `my-pod-1`, `my-pod-2`, etc.)
-3. **Add existing pods**: For any pods created using the RunPod website, `rp add <alias> <id>` adds it to `rp`'s local config
+3. **Track existing pods**: For any pods created using the RunPod website, `rp track <alias> <id>` adds it to `rp`'s local config
 4. **List pods**: `rp list` shows you all rp's managed pods and their status (running, stopped, or invalid if they don't exist)
-5. **Connect to pods**:
+5. **View pod details**: `rp show <alias>` displays comprehensive information including GPU, storage, cost, uptime, and scheduled tasks
+6. **Connect to pods**:
    - `rp shell <alias>` opens an interactive SSH shell to the pod
    - `rp cursor <alias> [path]` opens Cursor editor connected to the pod (defaults to /workspace or configured path)
-6. **Configure pods**: Set per-pod configuration like default Cursor paths, see [Pod Configuration](#pod-configuration)
-7. **Stop pods**: `rp stop <alias>` stops a pod. Alternatively you can schedule shutting down a pod, see [Scheduling](#scheduling)
-8. **Destroy pods**: `rp destroy <alias>` terminates a pod (stopping it too if it's still running)
+7. **Configure pods**: Set per-pod configuration like default Cursor paths, see [Pod Configuration](#pod-configuration)
+8. **Stop pods**: `rp stop <alias>` stops a pod. Alternatively you can schedule shutting down a pod, see [Scheduling](#scheduling)
+9. **Destroy pods**: `rp destroy <alias>` terminates a pod (with confirmation prompt; use `--force` to skip)
 
 The first time you run a `rp` command, it will ask you to provide your runpod API key. It will save this in `~/.config/rp/runpod_api_key`. If you don't want this saved in plaintext locally, make sure that the `RUNPOD_API_KEY` env var is set when you run `rp`.
 
@@ -77,6 +78,9 @@ rp template create ml-training "ml-training-{i}" --gpu 2xA100 --storage 1TB
 # Use the template (creates ml-training-1, ml-training-2, etc.)
 rp create --template ml-training
 
+# Or override the alias when using a template
+rp create custom-name --template ml-training
+
 # List all templates
 rp template list
 
@@ -84,7 +88,7 @@ rp template list
 rp template delete ml-training
 ```
 
-Templates automatically find the lowest available number for the `{i}` placeholder, so if `ml-training-1` exists, the next pod will be `ml-training-2`.
+Templates automatically find the lowest available number for the `{i}` placeholder, so if `ml-training-1` exists, the next pod will be `ml-training-2`. You can also provide an explicit alias to override the template's naming scheme.
 
 ### Pod Configuration
 
@@ -108,17 +112,17 @@ When you run `rp cursor alex-ast-1` or `rp shell alex-ast-1` without specifying 
 
 ### Scheduling
 
-You can schedule pod shutdowns for later using the `--schedule-at` or `--schedule-in` options with the `stop` command:
+You can schedule pod shutdowns for later using the `--at` or `--in` options with the `stop` command:
 
 ```bash
 # Schedule shutdown at a specific time
-rp stop my-pod --schedule-at "22:00"
-rp stop my-pod --schedule-at "2025-01-03 09:30"
-rp stop my-pod --schedule-at "tomorrow 09:30"
+rp stop my-pod --at "22:00"
+rp stop my-pod --at "2025-01-03 09:30"
+rp stop my-pod --at "tomorrow 09:30"
 
 # Schedule shutdown after a duration
-rp stop my-pod --schedule-in "2h"
-rp stop my-pod --schedule-in "1d2h30m"
+rp stop my-pod --in "2h"
+rp stop my-pod --in "1d2h30m"
 ```
 
 Manage your scheduled tasks with the `schedule` subcommands:

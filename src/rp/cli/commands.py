@@ -58,7 +58,28 @@ def get_ssh_manager() -> SSHManager:
     return _ssh_manager
 
 
-def create_command(  # noqa: PLR0915  # Function complexity acceptable for main command
+def _auto_clean() -> None:
+    """Silently perform cleanup tasks (invalid aliases, SSH blocks, completed tasks)."""
+    try:
+        pod_manager = get_pod_manager()
+        ssh_manager = get_ssh_manager()
+        scheduler = get_scheduler()
+
+        # Clean invalid aliases
+        pod_manager.clean_invalid_aliases()
+
+        # Prune SSH blocks
+        valid_aliases = set(pod_manager.aliases.keys())
+        ssh_manager.prune_managed_blocks(valid_aliases)
+
+        # Clean completed/cancelled scheduled tasks
+        scheduler.clean_completed_tasks()
+    except Exception:
+        # Silently fail - don't disrupt the user's workflow
+        pass
+
+
+def create_command(  # noqa: PLR0915, PLR0912  # Function complexity acceptable for main command
     alias: str | None = None,
     gpu: str | None = None,
     storage: str | None = None,
@@ -73,27 +94,37 @@ def create_command(  # noqa: PLR0915  # Function complexity acceptable for main 
         pod_manager = get_pod_manager()
 
         # Validate arguments
-        if template and (alias or gpu or storage or container_disk):
+        if template and (gpu or storage or container_disk):
             raise ValueError(
-                "Cannot specify --template with individual parameters (--alias, --gpu, --storage, --container-disk)"
+                "Cannot specify --template with individual parameters (--gpu, --storage, --container-disk)"
             )
 
         if not template and not (alias and gpu and storage):
             raise ValueError(
-                "Must specify either --template or all of (--alias, --gpu, --storage)"
+                "Must specify either --template or all of (alias, --gpu, --storage)"
             )
 
         if template:
-            # Use template mode
-            console.print(f"🚀 Creating pod from template '[bold]{template}[/bold]'")
+            # Use template mode (with optional alias override)
+            if alias:
+                console.print(
+                    f"🚀 Creating pod '[bold]{alias}[/bold]' from template '[bold]{template}[/bold]'"
+                )
+            else:
+                console.print(
+                    f"🚀 Creating pod from template '[bold]{template}[/bold]'"
+                )
 
             if dry_run:
                 # Show what would be created
                 template_obj = pod_manager.get_template(template)
-                next_index = pod_manager.config.find_next_alias_index(
-                    template_obj.alias_template
-                )
-                proposed_alias = template_obj.alias_template.format(i=next_index)
+                if alias:
+                    proposed_alias = alias
+                else:
+                    next_index = pod_manager.config.find_next_alias_index(
+                        template_obj.alias_template
+                    )
+                    proposed_alias = template_obj.alias_template.format(i=next_index)
 
                 console.print("[bold]DRY RUN[/bold] Would create:")
                 console.print(f"   Alias: {proposed_alias}")
@@ -110,7 +141,9 @@ def create_command(  # noqa: PLR0915  # Function complexity acceptable for main 
                 console=console,
             ) as progress:
                 task = progress.add_task("Creating pod from template…", total=None)
-                pod = pod_manager.create_pod_from_template(template, force, dry_run)
+                pod = pod_manager.create_pod_from_template(
+                    template, force, dry_run, alias_override=alias
+                )
                 progress.update(task, description="Pod created successfully")
 
             final_alias = pod.alias
@@ -202,6 +235,9 @@ def create_command(  # noqa: PLR0915  # Function complexity acceptable for main 
                 f"🎉 Created pod '[bold green]{final_alias}[/bold green]' with [bold yellow]{final_gpu_spec}[/bold yellow] GPU and [bold yellow]{final_volume_gb}GB[/bold yellow] storage"
             )
 
+        # Auto-clean invalid aliases and completed tasks
+        _auto_clean()
+
     except Exception as e:
         handle_cli_error(e)
 
@@ -244,14 +280,17 @@ def start_command(alias: str) -> None:
         # Run setup scripts
         run_setup_scripts(alias)
 
+        # Auto-clean invalid aliases and completed tasks
+        _auto_clean()
+
     except Exception as e:
         handle_cli_error(e)
 
 
 def stop_command(
     alias: str,
-    schedule_at: str | None = None,
-    schedule_in: str | None = None,
+    at: str | None = None,
+    in_: str | None = None,
     dry_run: bool = False,
 ) -> None:
     """Stop a RunPod instance, optionally scheduling for later."""
@@ -260,16 +299,16 @@ def stop_command(
         pod_manager = get_pod_manager()
         pod_manager.get_pod_id(alias)  # Raises if not found
 
-        if schedule_at and schedule_in:
-            raise SchedulingError.conflicting_options("--schedule-at", "--schedule-in")
+        if at and in_:
+            raise SchedulingError.conflicting_options("--at", "--in")
 
-        if schedule_at or schedule_in:
+        if at or in_:
             scheduler = get_scheduler()
 
-            if schedule_at:
-                when_dt = scheduler.parse_time_string(schedule_at)
+            if at:
+                when_dt = scheduler.parse_time_string(at)
             else:
-                seconds = scheduler.parse_duration_string(schedule_in or "")
+                seconds = scheduler.parse_duration_string(in_ or "")
                 when_dt = datetime.now(tz.tzlocal()) + timedelta(seconds=seconds)
 
             local_str = when_dt.strftime("%Y-%m-%d %H:%M %Z")
@@ -315,14 +354,26 @@ def stop_command(
         if removed:
             console.print(f"🧹 Removed SSH config block for '[bold]{alias}[/bold]'")
 
+        # Auto-clean invalid aliases and completed tasks
+        _auto_clean()
+
     except Exception as e:
         handle_cli_error(e)
 
 
-def destroy_command(alias: str) -> None:
+def destroy_command(alias: str, force: bool = False) -> None:
     """Terminate a pod, remove SSH config, and delete the alias."""
     try:
         pod_manager = get_pod_manager()
+
+        # Confirm destruction unless force is set
+        if not force:
+            response = typer.confirm(
+                f"⚠️  Are you sure you want to destroy pod '{alias}'? This action cannot be undone."
+            )
+            if not response:
+                console.print("❌ Destruction cancelled.")
+                raise typer.Exit(0)
 
         console.print(f"🔥 Destroying pod '[bold]{alias}[/bold]'…")
         pod_id = pod_manager.destroy_pod(alias)
@@ -338,29 +389,32 @@ def destroy_command(alias: str) -> None:
             f"🗑️  Removed alias '[bold]{alias}[/bold]' from local configuration."
         )
 
+        # Auto-clean invalid aliases and completed tasks
+        _auto_clean()
+
     except Exception as e:
         handle_cli_error(e)
 
 
-def add_command(alias: str, pod_id: str, force: bool = False) -> None:
-    """Add an alias for an existing RunPod."""
+def track_command(alias: str, pod_id: str, force: bool = False) -> None:
+    """Track an existing RunPod pod with an alias."""
     try:
         pod_manager = get_pod_manager()
         pod_manager.add_alias(alias, pod_id, force)
-        console.print(f"✅ Saved alias '[bold]{alias}[/bold]' -> {pod_id}")
+        console.print(f"✅ Now tracking '[bold]{alias}[/bold]' -> {pod_id}")
 
     except Exception as e:
         handle_cli_error(e)
 
 
-def delete_command(alias: str, missing_ok: bool = False) -> None:
-    """Delete an alias mapping."""
+def untrack_command(alias: str, missing_ok: bool = False) -> None:
+    """Stop tracking a pod (removes alias mapping)."""
     try:
         pod_manager = get_pod_manager()
         pod_id = pod_manager.remove_alias(alias, missing_ok)
 
         if pod_id:
-            console.print(f"✅ Removed alias '[bold]{alias}[/bold]' (was {pod_id})")
+            console.print(f"✅ Stopped tracking '[bold]{alias}[/bold]' (was {pod_id})")
         else:
             console.print(f"i  Alias '[bold]{alias}[/bold]' not found; nothing to do.")
 
@@ -384,6 +438,88 @@ def list_command() -> None:
                 configs[pod.alias] = {}
 
         display_pods_table(pods, configs)
+
+    except Exception as e:
+        handle_cli_error(e)
+
+
+def show_command(alias: str) -> None:  # noqa: PLR0912
+    """Show detailed information about a pod."""
+    try:
+        pod_manager = get_pod_manager()
+        scheduler = get_scheduler()
+
+        # Get pod details
+        pod = pod_manager.get_pod(alias)
+
+        # Get any scheduled tasks for this pod
+        scheduled_tasks = [
+            t
+            for t in scheduler.tasks
+            if t.alias == alias and t.status.value == "pending"
+        ]
+
+        console.print(f"\n[bold cyan]Pod Details: {alias}[/bold cyan]")
+        console.print("=" * 60)
+
+        # Basic info
+        console.print(f"[bold]ID:[/bold]        {pod.id}")
+        console.print(f"[bold]Status:[/bold]    {pod.status.value.upper()}")
+
+        # GPU info
+        if pod.gpu_spec:
+            console.print(f"[bold]GPU:[/bold]       {pod.gpu_spec}")
+        else:
+            console.print("[bold]GPU:[/bold]       [dim](unknown)[/dim]")
+
+        # Storage info
+        if pod.volume_gb:
+            console.print(f"[bold]Storage:[/bold]   {pod.volume_gb}GB")
+        else:
+            console.print("[bold]Storage:[/bold]   [dim](unknown)[/dim]")
+
+        if pod.container_disk_gb:
+            console.print(f"[bold]Container:[/bold]  {pod.container_disk_gb}GB")
+
+        # Cost info
+        if pod.cost_per_hour:
+            console.print(f"[bold]Cost:[/bold]      ${pod.cost_per_hour:.3f}/hour")
+        else:
+            console.print("[bold]Cost:[/bold]      [dim](unknown)[/dim]")
+
+        # Uptime info
+        if pod.uptime_seconds is not None:
+            hours = pod.uptime_seconds // 3600
+            minutes = (pod.uptime_seconds % 3600) // 60
+            uptime_str = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
+            console.print(f"[bold]Uptime:[/bold]    {uptime_str}")
+
+            if pod.cost_per_hour:
+                total_cost = (pod.uptime_seconds / 3600) * pod.cost_per_hour
+                console.print(f"[bold]Total Cost:[/bold] ${total_cost:.2f}")
+
+        # Network info (if running)
+        if pod.ip_address and pod.ssh_port:
+            console.print(f"[bold]IP:[/bold]        {pod.ip_address}:{pod.ssh_port}")
+
+        # Image info
+        if pod.image:
+            # Truncate long image names
+            image_display = (
+                pod.image if len(pod.image) <= 50 else pod.image[:47] + "..."
+            )
+            console.print(f"[bold]Image:[/bold]     {image_display}")
+
+        # Scheduled tasks
+        if scheduled_tasks:
+            console.print("\n[bold yellow]Scheduled Tasks:[/bold yellow]")
+            for task in scheduled_tasks:
+                when_str = task.when_datetime.strftime("%Y-%m-%d %H:%M")
+                console.print(
+                    f"  • {task.action} at {when_str} [dim](id={task.id[:8]})[/dim]"
+                )
+
+        console.print("=" * 60 + "\n")
 
     except Exception as e:
         handle_cli_error(e)
@@ -414,6 +550,15 @@ def clean_command() -> None:
         else:
             console.print("✅ No orphaned SSH config blocks to prune.")
 
+        # Clean completed/cancelled scheduled tasks
+        scheduler = get_scheduler()
+        removed_tasks = scheduler.clean_completed_tasks()
+
+        if removed_tasks:
+            console.print(
+                f"🗑️  Removed [bold]{removed_tasks}[/bold] completed/cancelled scheduled task(s)."
+            )
+
     except Exception as e:
         handle_cli_error(e)
 
@@ -440,23 +585,6 @@ def schedule_cancel_command(task_id: str) -> None:
             )
         else:
             console.print(f"✅ Cancelled task [bold]{task_id}[/bold].")
-
-    except Exception as e:
-        handle_cli_error(e)
-
-
-def schedule_clean_command() -> None:
-    """Remove completed and cancelled tasks."""
-    try:
-        scheduler = get_scheduler()
-        removed = scheduler.clean_completed_tasks()
-
-        if removed:
-            console.print(
-                f"✅ Removed [bold]{removed}[/bold] completed/cancelled task(s)."
-            )
-        else:
-            console.print("No completed or cancelled tasks to remove.")
 
     except Exception as e:
         handle_cli_error(e)
