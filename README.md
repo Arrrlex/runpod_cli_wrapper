@@ -57,7 +57,7 @@ The workflow is roughly:
    - Use template: `rp create --template my-template` (automatically creates `my-pod-1`, `my-pod-2`, etc.)
 3. **Track existing pods**: For any pods created using the RunPod website, `rp track <alias> <id>` adds it to `rp`'s local config
 4. **List pods**: `rp list` shows you all rp's managed pods and their status (running, stopped, or invalid if they don't exist)
-5. **View pod details**: `rp show <alias>` displays comprehensive information including GPU, storage, cost, uptime, and scheduled tasks
+5. **View pod details**: `rp show <alias>` displays comprehensive information including GPU, storage, cost, and scheduled tasks
 6. **Connect to pods**:
    - `rp shell <alias>` opens an interactive SSH shell to the pod
    - `rp cursor <alias> [path]` opens Cursor editor connected to the pod (defaults to /workspace or configured path)

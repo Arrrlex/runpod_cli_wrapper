@@ -339,8 +339,7 @@ rp show my-pod
 - Pod ID and status
 - GPU type and count
 - Storage (volume and container disk)
-- Cost per hour and total cost (based on uptime)
-- Uptime
+- Cost per hour
 - IP address and SSH port (if running)
 - Docker image
 - Scheduled tasks (if any)
@@ -355,8 +354,6 @@ GPU:       2xH100PCIE
 Storage:   500GB
 Container:  20GB
 Cost:      $3.200/hour
-Uptime:    5h 23m
-Total Cost: $17.23
 IP:        123.45.67.89:12345
 Image:     runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn...
 

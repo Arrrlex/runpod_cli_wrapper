@@ -443,7 +443,7 @@ def list_command() -> None:
         handle_cli_error(e)
 
 
-def show_command(alias: str) -> None:  # noqa: PLR0912
+def show_command(alias: str) -> None:
     """Show detailed information about a pod."""
     try:
         pod_manager = get_pod_manager()
@@ -486,17 +486,6 @@ def show_command(alias: str) -> None:  # noqa: PLR0912
             console.print(f"[bold]Cost:[/bold]      ${pod.cost_per_hour:.3f}/hour")
         else:
             console.print("[bold]Cost:[/bold]      [dim](unknown)[/dim]")
-
-        # Uptime info
-        if pod.uptime_seconds is not None:
-            hours = pod.uptime_seconds // 3600
-            minutes = (pod.uptime_seconds % 3600) // 60
-            uptime_str = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
-            console.print(f"[bold]Uptime:[/bold]    {uptime_str}")
-
-            if pod.cost_per_hour:
-                total_cost = (pod.uptime_seconds / 3600) * pod.cost_per_hour
-                console.print(f"[bold]Total Cost:[/bold] ${total_cost:.2f}")
 
         # Network info (if running)
         if pod.ip_address and pod.ssh_port:
