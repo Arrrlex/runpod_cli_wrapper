@@ -62,6 +62,12 @@ uv tool install https://github.com/Arrrlex/rp.git
 uv tool upgrade rp
 ```
 
+### Uninstall
+
+```bash
+uv tool uninstall rp
+```
+
 ### First Run
 
 On first run, `rp` will prompt for your RunPod API key and save it to `~/.config/rp/runpod_api_key`. To avoid saving the key in plaintext, set the `RUNPOD_API_KEY` environment variable before running commands.

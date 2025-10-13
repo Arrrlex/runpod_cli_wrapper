@@ -31,6 +31,14 @@ To upgrade to the latest version:
 uv tool upgrade rp
 ```
 
+## Uninstalling
+
+To uninstall:
+
+```bash
+uv tool uninstall rp
+```
+
 ## Usage
 
 After installation, use the `rp` command to interact with your RunPod instances:
