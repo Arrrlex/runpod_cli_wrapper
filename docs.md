@@ -1,0 +1,1426 @@
+# rp - Complete Documentation
+
+This document provides comprehensive documentation for `rp`, a RunPod CLI wrapper tool that simplifies managing RunPod GPU instances through the command line. This documentation is structured to provide complete context about the tool's capabilities, configuration, and usage.
+
+> **For LLMs**: This document contains complete technical specifications for the `rp` tool. It documents all CLI commands, configuration files, environment variables, and internal behavior. Use this as a reference to understand and assist with `rp` operations.
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Installation](#installation)
+3. [Command Reference](#command-reference)
+4. [Configuration](#configuration)
+5. [File Structure](#file-structure)
+6. [Environment Variables](#environment-variables)
+7. [Workflow Guide](#workflow-guide)
+8. [Advanced Usage](#advanced-usage)
+9. [Technical Details](#technical-details)
+
+---
+
+## Overview
+
+`rp` is a command-line wrapper around the RunPod Python API that provides:
+
+- **Simplified pod management**: Create, start, stop, and destroy GPU pods
+- **Alias system**: Manage pods using memorable names instead of IDs
+- **Template support**: Create reusable pod configurations with automatic numbering
+- **Scheduling**: Schedule pod operations (e.g., stop after 2 hours)
+- **SSH integration**: Automatic SSH config management
+- **Setup automation**: Run custom scripts on pod creation/startup
+- **Per-pod configuration**: Store settings like default working directories
+- **Editor integration**: Direct integration with Cursor and SSH shells
+
+### Key Features
+
+- Persistent local configuration stored in `~/.config/rp/`
+- Automatic SSH configuration management in `~/.ssh/config`
+- Scheduled task execution via macOS launchd (background daemon)
+- Template-based pod creation with auto-incrementing aliases
+- Per-pod configuration for default paths and settings
+
+---
+
+## Installation
+
+### Requirements
+
+- Python 3.13 or higher
+- `uv` package manager
+- RunPod API key
+- SSH access to RunPod instances
+
+### Install with uv
+
+```bash
+uv tool install https://github.com/Arrrlex/rp.git
+```
+
+### Upgrade
+
+```bash
+uv tool upgrade rp
+```
+
+### First Run
+
+On first run, `rp` will prompt for your RunPod API key and save it to `~/.config/rp/runpod_api_key`. To avoid saving the key in plaintext, set the `RUNPOD_API_KEY` environment variable before running commands.
+
+---
+
+## Command Reference
+
+### Core Pod Management
+
+#### `rp create`
+
+Create a new pod and add it to local configuration.
+
+**Syntax:**
+```bash
+rp create <alias> --gpu <gpu_spec> --storage <size> [options]
+rp create --template <template_id>
+```
+
+**Arguments:**
+- `<alias>`: SSH host alias (e.g., `my-pod-1`)
+
+**Options:**
+- `--gpu <spec>`: GPU specification (e.g., `2xA100`, `1xH100`, `4xRTX4090`)
+- `--storage <size>`: Volume size (e.g., `500GB`, `1TB`)
+- `--container-disk <size>`: Container disk size (default: `20GB`)
+- `--template <id>`: Use a pod template instead of specifying options
+- `--image <image>`: Docker image (default: `runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04`)
+- `--force, -f`: Overwrite existing alias if it exists
+- `--dry-run`: Show what would be created without creating
+
+**Examples:**
+```bash
+# Create with explicit parameters
+rp create my-pod --gpu 2xA100 --storage 500GB
+
+# Create with custom image
+rp create my-pod --gpu 1xH100 --storage 1TB --image nvidia/cuda:12.0.0-devel-ubuntu22.04
+
+# Create from template
+rp create --template ml-training
+
+# Dry run to preview
+rp create my-pod --gpu 2xA100 --storage 500GB --dry-run
+```
+
+**Behavior:**
+1. Creates the pod via RunPod API
+2. Adds alias to local configuration (`~/.config/rp/pods.json`)
+3. Waits for pod to be running and SSH to be available
+4. Updates SSH config (`~/.ssh/config`)
+5. Runs setup scripts (`setup_local.sh` and `setup_remote.sh`)
+
+---
+
+#### `rp start`
+
+Start a stopped pod.
+
+**Syntax:**
+```bash
+rp start <alias>
+```
+
+**Arguments:**
+- `<alias>`: Pod alias to start
+
+**Example:**
+```bash
+rp start my-pod
+```
+
+**Behavior:**
+1. Starts the pod via RunPod API
+2. Waits for pod to be running
+3. Updates SSH config with current IP/port
+4. Runs setup scripts
+
+---
+
+#### `rp stop`
+
+Stop a running pod, either immediately or scheduled for later.
+
+**Syntax:**
+```bash
+rp stop <alias> [options]
+```
+
+**Arguments:**
+- `<alias>`: Pod alias to stop
+
+**Options:**
+- `--schedule-at <time>`: Schedule stop at a specific time
+- `--schedule-in <duration>`: Schedule stop after a duration
+- `--dry-run`: Show what would happen without performing the action
+
+**Time Formats (--schedule-at):**
+- `"HH:MM"` - Today at specified time (or tomorrow if past)
+- `"YYYY-MM-DD HH:MM"` - Specific date and time
+- `"tomorrow HH:MM"` - Tomorrow at specified time
+- Any format parseable by Python's `dateutil.parser`
+
+**Duration Formats (--schedule-in):**
+- `"3h"` - 3 hours
+- `"45m"` - 45 minutes
+- `"1d2h30m"` - 1 day, 2 hours, 30 minutes
+- `"2h30m"` - 2 hours, 30 minutes
+
+**Examples:**
+```bash
+# Stop immediately
+rp stop my-pod
+
+# Stop at 10 PM today (or tomorrow if past 10 PM)
+rp stop my-pod --schedule-at "22:00"
+
+# Stop tomorrow morning
+rp stop my-pod --schedule-at "tomorrow 09:30"
+
+# Stop in 2 hours
+rp stop my-pod --schedule-in "2h"
+
+# Stop in 1 day and 3 hours
+rp stop my-pod --schedule-in "1d3h"
+```
+
+**Behavior (immediate):**
+1. Stops pod via RunPod API
+2. Removes SSH config entry
+
+**Behavior (scheduled):**
+1. Creates a scheduled task
+2. Installs/updates macOS launchd agent (if on macOS)
+3. Task will execute at specified time
+
+---
+
+#### `rp destroy`
+
+Terminate a pod, remove it from configuration, and clean up SSH config.
+
+**Syntax:**
+```bash
+rp destroy <alias>
+```
+
+**Arguments:**
+- `<alias>`: Pod alias to destroy
+
+**Example:**
+```bash
+rp destroy my-pod
+```
+
+**Behavior:**
+1. Terminates pod via RunPod API (stops first if running)
+2. Removes alias from local configuration
+3. Removes SSH config entry
+
+**Warning:** This permanently deletes the pod and all data on it.
+
+---
+
+### Alias Management
+
+#### `rp add`
+
+Add an existing RunPod pod to local configuration.
+
+**Syntax:**
+```bash
+rp add <alias> <pod_id> [options]
+```
+
+**Arguments:**
+- `<alias>`: Alias to assign
+- `<pod_id>`: RunPod pod ID (e.g., `89qgenjznh5t2j`)
+
+**Options:**
+- `--force, -f`: Overwrite existing alias
+
+**Example:**
+```bash
+# Add a pod created through RunPod website
+rp add my-existing-pod 89qgenjznh5t2j
+```
+
+---
+
+#### `rp delete`
+
+Remove an alias from local configuration (does not terminate the pod).
+
+**Syntax:**
+```bash
+rp delete <alias> [options]
+```
+
+**Arguments:**
+- `<alias>`: Alias to remove
+
+**Options:**
+- `--missing-ok`: Don't error if alias doesn't exist
+
+**Example:**
+```bash
+rp delete my-pod
+```
+
+---
+
+#### `rp list`
+
+List all pods with their status and configuration.
+
+**Syntax:**
+```bash
+rp list
+```
+
+**Output columns:**
+- **Alias**: Pod alias
+- **ID**: RunPod pod ID
+- **Status**: `running`, `stopped`, or `invalid` (pod doesn't exist)
+- **Config Path**: Default path if configured
+
+**Example output:**
+```
+Alias           ID              Status    Config Path
+────────────────────────────────────────────────────────
+my-pod-1        89qgenjznh5t2j  running   /workspace/project
+my-pod-2        k3nf83hdk3nd92  stopped   -
+```
+
+---
+
+#### `rp clean`
+
+Remove invalid aliases and prune orphaned SSH config entries.
+
+**Syntax:**
+```bash
+rp clean
+```
+
+**Behavior:**
+1. Queries RunPod API for each alias
+2. Removes aliases for pods that no longer exist
+3. Removes SSH config entries for removed aliases
+
+---
+
+### Connection Commands
+
+#### `rp cursor`
+
+Open Cursor editor connected to a pod via SSH.
+
+**Syntax:**
+```bash
+rp cursor <alias> [path]
+```
+
+**Arguments:**
+- `<alias>`: Pod alias to connect to
+- `[path]`: Remote path to open (optional)
+
+**Default path:**
+- Uses configured default path if set (see `rp config set`)
+- Falls back to `/workspace` if no path configured
+
+**Example:**
+```bash
+# Open at configured default path or /workspace
+rp cursor my-pod
+
+# Open at specific path
+rp cursor my-pod /workspace/myproject
+```
+
+**Requirements:**
+- Cursor must be installed and in PATH
+- SSH config must be set up (happens automatically with `rp create/start`)
+
+---
+
+#### `rp shell`
+
+Open an interactive SSH shell to a pod.
+
+**Syntax:**
+```bash
+rp shell <alias>
+```
+
+**Arguments:**
+- `<alias>`: Pod alias to connect to
+
+**Example:**
+```bash
+rp shell my-pod
+```
+
+**Behavior:**
+- If default path configured: `cd`s into that directory automatically
+- Enables SSH agent forwarding (`-A` flag)
+
+---
+
+### Pod Configuration
+
+#### `rp config set`
+
+Set a configuration value for a pod.
+
+**Syntax:**
+```bash
+rp config set <alias> <key> [value]
+```
+
+**Arguments:**
+- `<alias>`: Pod alias
+- `<key>`: Configuration key (currently only `path` is supported)
+- `[value]`: Value to set (omit to clear)
+
+**Valid keys:**
+- `path`: Default working directory path
+
+**Examples:**
+```bash
+# Set default path
+rp config set my-pod path /workspace/myproject
+
+# Clear default path
+rp config set my-pod path
+```
+
+---
+
+#### `rp config get`
+
+Get a configuration value for a pod.
+
+**Syntax:**
+```bash
+rp config get <alias> <key>
+```
+
+**Arguments:**
+- `<alias>`: Pod alias
+- `<key>`: Configuration key
+
+**Example:**
+```bash
+rp config get my-pod path
+```
+
+---
+
+#### `rp config list`
+
+List all configuration values for a pod.
+
+**Syntax:**
+```bash
+rp config list <alias>
+```
+
+**Arguments:**
+- `<alias>`: Pod alias
+
+**Example:**
+```bash
+rp config list my-pod
+```
+
+**Output:**
+```
+Configuration for 'my-pod':
+  path: /workspace/myproject
+```
+
+---
+
+### Template Management
+
+Templates allow you to save common pod configurations and reuse them with automatic alias numbering.
+
+#### `rp template create`
+
+Create a new pod template.
+
+**Syntax:**
+```bash
+rp template create <identifier> <alias_template> --gpu <spec> --storage <size> [options]
+```
+
+**Arguments:**
+- `<identifier>`: Template identifier (e.g., `ml-training`)
+- `<alias_template>`: Alias template with `{i}` placeholder (e.g., `ml-training-{i}`)
+
+**Options:**
+- `--gpu <spec>`: GPU specification (required)
+- `--storage <size>`: Storage size (required)
+- `--container-disk <size>`: Container disk size (optional)
+- `--image <image>`: Docker image (optional)
+- `--force, -f`: Overwrite existing template
+
+**Example:**
+```bash
+rp template create ml-training "ml-training-{i}" --gpu 2xA100 --storage 1TB
+```
+
+**Note:** The `{i}` placeholder is replaced with the next available number when creating a pod from the template.
+
+---
+
+#### `rp template list`
+
+List all pod templates.
+
+**Syntax:**
+```bash
+rp template list
+```
+
+**Output:**
+```
+Pod Templates
+────────────────────────────────────────────────────────────────────
+Identifier    Alias Template    GPU      Storage  Container Disk  Image
+────────────────────────────────────────────────────────────────────
+ml-training   ml-training-{i}   2xA100   1TB      (default: 20GB) (default)
+```
+
+---
+
+#### `rp template delete`
+
+Delete a pod template.
+
+**Syntax:**
+```bash
+rp template delete <identifier> [options]
+```
+
+**Arguments:**
+- `<identifier>`: Template identifier
+
+**Options:**
+- `--missing-ok`: Don't error if template doesn't exist
+
+**Example:**
+```bash
+rp template delete ml-training
+```
+
+---
+
+### Schedule Management
+
+#### `rp schedule list`
+
+List all scheduled tasks.
+
+**Syntax:**
+```bash
+rp schedule list
+```
+
+**Output columns:**
+- **ID**: Task UUID
+- **Action**: Operation to perform (e.g., `stop`)
+- **Alias**: Target pod alias
+- **When**: Scheduled execution time
+- **Status**: `pending`, `completed`, `failed`, or `cancelled`
+
+---
+
+#### `rp schedule cancel`
+
+Cancel a scheduled task.
+
+**Syntax:**
+```bash
+rp schedule cancel <task_id>
+```
+
+**Arguments:**
+- `<task_id>`: Task UUID from `rp schedule list`
+
+**Example:**
+```bash
+rp schedule cancel 550e8400-e29b-41d4-a716-446655440000
+```
+
+---
+
+#### `rp schedule clean`
+
+Remove completed and cancelled tasks from the schedule.
+
+**Syntax:**
+```bash
+rp schedule clean
+```
+
+**Note:** This happens automatically on each command run, but you can run it manually to clean up the schedule.
+
+---
+
+### Internal Commands
+
+#### `rp scheduler-tick`
+
+Execute due scheduled tasks. This is called automatically by the macOS launchd agent.
+
+**Syntax:**
+```bash
+rp scheduler-tick
+```
+
+**Note:** You generally don't need to run this manually. It's executed every minute by the background scheduler.
+
+---
+
+## Configuration
+
+### Configuration Directory
+
+All configuration is stored in `~/.config/rp/`.
+
+**Directory structure:**
+```
+~/.config/rp/
+├── runpod_api_key        # RunPod API key (optional)
+├── pods.json             # Pod aliases and configuration
+├── schedule.json         # Scheduled tasks
+├── setup_remote.sh       # Remote setup script (optional)
+└── setup_local.sh        # Local setup script (optional)
+```
+
+---
+
+### Configuration Files
+
+#### `pods.json`
+
+Stores pod aliases, metadata, templates, and per-pod configuration.
+
+**Format:**
+```json
+{
+  "aliases": {},
+  "pod_metadata": {
+    "my-pod-1": {
+      "pod_id": "89qgenjznh5t2j",
+      "config": {
+        "path": "/workspace/myproject"
+      }
+    }
+  },
+  "scheduled_tasks": [],
+  "pod_templates": {
+    "ml-training": {
+      "identifier": "ml-training",
+      "alias_template": "ml-training-{i}",
+      "gpu_spec": "2xA100",
+      "storage_spec": "1TB",
+      "container_disk_spec": null,
+      "image": null
+    }
+  }
+}
+```
+
+**Fields:**
+- `aliases`: Legacy format (alias → pod_id mapping)
+- `pod_metadata`: New format with per-pod configuration
+  - `pod_id`: RunPod instance ID
+  - `config`: Per-pod settings
+    - `path`: Default working directory
+- `scheduled_tasks`: Array of scheduled tasks (deprecated, moved to `schedule.json`)
+- `pod_templates`: Dictionary of pod templates
+
+---
+
+#### `schedule.json`
+
+Stores scheduled tasks.
+
+**Format:**
+```json
+[
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "action": "stop",
+    "alias": "my-pod",
+    "when_epoch": 1704124800,
+    "status": "pending",
+    "created_at": "2025-01-01T12:00:00Z",
+    "last_error": null
+  }
+]
+```
+
+**Task fields:**
+- `id`: Unique task UUID
+- `action`: Action to perform (`stop` is currently the only supported action)
+- `alias`: Target pod alias
+- `when_epoch`: Unix timestamp for execution
+- `status`: Task status
+  - `pending`: Not yet executed
+  - `completed`: Successfully executed
+  - `failed`: Execution failed
+  - `cancelled`: Manually cancelled
+- `created_at`: ISO 8601 timestamp of task creation
+- `last_error`: Error message if status is `failed`
+
+---
+
+#### `runpod_api_key`
+
+Contains the RunPod API key in plaintext.
+
+**Format:** Single line with the API key
+
+**Example:**
+```
+YOUR_RUNPOD_API_KEY_HERE
+```
+
+**Security note:** To avoid storing the key in plaintext, set the `RUNPOD_API_KEY` environment variable instead.
+
+---
+
+#### `setup_remote.sh`
+
+Optional script that runs on the remote pod during startup (after `rp create` or `rp start`).
+
+**When it runs:**
+- After pod is created and SSH is available
+- After pod is started from stopped state
+
+**Environment:**
+- Runs as root on the pod
+- Has network access
+- Can install packages, configure services, etc.
+
+**Example:** See `assets/example_setup_remote.sh` in the repository
+
+**Common use cases:**
+- Install system packages
+- Configure SSH for GitHub/GitLab
+- Set environment variables
+- Install development tools
+- Configure Git settings
+
+---
+
+#### `setup_local.sh`
+
+Optional script that runs locally when connecting to a pod.
+
+**When it runs:**
+- After `setup_remote.sh` completes
+- During `rp create` and `rp start`
+
+**Environment variables:**
+- `$POD_HOST`: The pod alias (can be used with SSH/SCP)
+
+**Example:** See `assets/example_setup_local.sh` in the repository
+
+**Common use cases:**
+- Copy SSH keys to pod
+- Copy configuration files
+- Upload credentials
+- Run local preparation tasks
+
+---
+
+### SSH Configuration
+
+`rp` automatically manages SSH configuration in `~/.ssh/config`.
+
+**Managed SSH block format:**
+```
+Host my-pod
+    # rp:managed alias=my-pod pod_id=89qgenjznh5t2j updated=2025-01-01T12:00:00Z
+    HostName 123.456.789.0
+    User root
+    Port 12345
+    IdentitiesOnly yes
+    IdentityFile ~/.ssh/runpod
+    ForwardAgent yes
+```
+
+**Marker:** Lines starting with `# rp:managed` identify blocks managed by `rp`. These blocks are automatically updated when pods are started and removed when pods are stopped or destroyed.
+
+**Note:** Don't manually edit rp-managed blocks, as they will be overwritten.
+
+---
+
+### macOS Scheduler (launchd)
+
+On macOS, `rp` uses launchd to execute scheduled tasks.
+
+**Launchd agent location:**
+```
+~/Library/LaunchAgents/com.rp.scheduler.plist
+```
+
+**Log file:**
+```
+~/Library/Logs/rp-scheduler.log
+```
+
+**Configuration:**
+- Runs every 60 seconds
+- Executes `rp scheduler-tick` to check for due tasks
+- Starts automatically at login
+- Environment variables passed to agent:
+  - `PATH`: Standard system paths
+  - `RUNPOD_API_KEY`: If saved in config file
+
+**Manual management:**
+```bash
+# Check if agent is running
+launchctl print gui/$(id -u)/com.rp.scheduler
+
+# Stop agent
+launchctl bootout gui/$(id -u)/com.rp.scheduler
+
+# Start agent
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.rp.scheduler.plist
+
+# Restart agent
+launchctl kickstart -k gui/$(id -u)/com.rp.scheduler
+```
+
+---
+
+## File Structure
+
+### Configuration Files
+
+| Path | Purpose | Format |
+|------|---------|--------|
+| `~/.config/rp/runpod_api_key` | RunPod API key | Plain text |
+| `~/.config/rp/pods.json` | Pod aliases and configuration | JSON |
+| `~/.config/rp/schedule.json` | Scheduled tasks | JSON |
+| `~/.config/rp/setup_remote.sh` | Remote setup script | Bash script |
+| `~/.config/rp/setup_local.sh` | Local setup script | Bash script |
+
+### macOS Scheduler Files
+
+| Path | Purpose |
+|------|---------|
+| `~/Library/LaunchAgents/com.rp.scheduler.plist` | Launchd configuration |
+| `~/Library/Logs/rp-scheduler.log` | Scheduler execution log |
+
+### SSH Configuration
+
+| Path | Purpose |
+|------|---------|
+| `~/.ssh/config` | SSH client configuration (managed blocks) |
+| `~/.ssh/runpod` | Default SSH key for RunPod pods |
+
+---
+
+## Environment Variables
+
+### `RUNPOD_API_KEY`
+
+RunPod API key for authentication.
+
+**Priority:**
+1. Environment variable `RUNPOD_API_KEY` (highest priority)
+2. File `~/.config/rp/runpod_api_key`
+3. Prompt user if neither exists
+
+**Example:**
+```bash
+export RUNPOD_API_KEY="your_api_key_here"
+rp list
+```
+
+### `POD_HOST`
+
+Available in `setup_local.sh` script. Contains the pod alias being set up.
+
+**Example usage in setup_local.sh:**
+```bash
+#!/bin/bash
+scp ~/.ssh/my_key $POD_HOST:/root/.ssh/
+```
+
+---
+
+## Workflow Guide
+
+### Initial Setup
+
+1. **Install rp:**
+   ```bash
+   uv tool install https://github.com/Arrrlex/rp.git
+   ```
+
+2. **Set up API key (optional):**
+   ```bash
+   # Option 1: Environment variable
+   export RUNPOD_API_KEY="your_key"
+
+   # Option 2: Let rp prompt and save it
+   rp list
+   ```
+
+3. **Create setup scripts (optional):**
+   ```bash
+   mkdir -p ~/.config/rp
+   cp assets/example_setup_remote.sh ~/.config/rp/setup_remote.sh
+   cp assets/example_setup_local.sh ~/.config/rp/setup_local.sh
+   chmod +x ~/.config/rp/*.sh
+   # Edit these files to customize
+   ```
+
+---
+
+### Creating and Using Pods
+
+**Direct creation:**
+```bash
+# Create a pod
+rp create my-pod --gpu 2xA100 --storage 500GB
+
+# Connect with Cursor
+rp cursor my-pod
+
+# Connect with SSH
+rp shell my-pod
+
+# Stop when done
+rp stop my-pod
+```
+
+**Template-based workflow:**
+```bash
+# Create a template
+rp template create training "train-{i}" --gpu 2xA100 --storage 1TB
+
+# Create pods from template
+rp create --template training  # Creates train-1
+rp create --template training  # Creates train-2
+
+# List all pods
+rp list
+```
+
+---
+
+### Scheduling Pod Stops
+
+```bash
+# Create and work on pod
+rp create my-pod --gpu 2xH100 --storage 1TB
+
+# Schedule it to stop in 8 hours
+rp stop my-pod --schedule-in "8h"
+
+# Check scheduled tasks
+rp schedule list
+
+# Cancel if needed
+rp schedule cancel <task-id>
+```
+
+---
+
+### Managing Existing Pods
+
+```bash
+# Add a pod created on RunPod website
+rp add existing-pod 89qgenjznh5t2j
+
+# List all pods
+rp list
+
+# Connect to it
+rp shell existing-pod
+
+# Set default path
+rp config set existing-pod path /workspace/myproject
+
+# Now cursor opens at that path by default
+rp cursor existing-pod
+```
+
+---
+
+### Cleaning Up
+
+```bash
+# Remove pods that no longer exist
+rp clean
+
+# Remove completed scheduled tasks
+rp schedule clean
+
+# Destroy a pod permanently
+rp destroy my-pod
+```
+
+---
+
+## Advanced Usage
+
+### Custom Docker Images
+
+You can specify custom Docker images when creating pods:
+
+```bash
+rp create my-pod --gpu 2xA100 --storage 500GB \
+  --image nvidia/cuda:12.0.0-devel-ubuntu22.04
+```
+
+Or in templates:
+
+```bash
+rp template create custom "custom-{i}" \
+  --gpu 2xA100 \
+  --storage 500GB \
+  --image myregistry/myimage:latest
+```
+
+---
+
+### Container Disk Size
+
+RunPod pods have both a persistent volume and a container disk. By default, the container disk is 20GB.
+
+To specify a larger container disk:
+
+```bash
+rp create my-pod --gpu 2xA100 --storage 500GB --container-disk 50GB
+```
+
+---
+
+### Per-Pod Configuration
+
+Configure default paths for each pod to streamline your workflow:
+
+```bash
+# Set default path
+rp config set my-pod path /workspace/myproject
+
+# Now these commands use the default path
+rp cursor my-pod      # Opens at /workspace/myproject
+rp shell my-pod       # CDs to /workspace/myproject
+```
+
+---
+
+### Setup Script Environment Variables
+
+**In setup_remote.sh:**
+```bash
+#!/bin/bash
+# Example: Set environment variables for HuggingFace
+echo 'export HF_HOME=/workspace/huggingface' >> ~/.bashrc
+echo 'export UV_CACHE_DIR=/workspace/uv' >> ~/.bashrc
+```
+
+**In setup_local.sh:**
+```bash
+#!/bin/bash
+# $POD_HOST is set to the pod alias
+scp ~/.ssh/github_key $POD_HOST:/root/.ssh/github_key
+scp ~/.config/myapp/config.yaml $POD_HOST:/workspace/
+```
+
+---
+
+### Force Operations
+
+Some commands support `--force` to overwrite existing data:
+
+```bash
+# Overwrite existing alias
+rp add my-pod new-pod-id --force
+
+# Overwrite existing template
+rp template create training "train-{i}" --gpu 4xA100 --storage 2TB --force
+
+# Overwrite existing alias when creating
+rp create my-pod --gpu 2xA100 --storage 500GB --force
+```
+
+---
+
+### Dry Run Mode
+
+Preview operations without executing them:
+
+```bash
+# See what would be created
+rp create my-pod --gpu 2xA100 --storage 500GB --dry-run
+
+# See what would be scheduled
+rp stop my-pod --schedule-in "2h" --dry-run
+```
+
+---
+
+## Technical Details
+
+### Pod Status
+
+Pods can have three statuses:
+
+1. **running**: Pod is active and accessible via SSH
+2. **stopped**: Pod is paused (data persists)
+3. **invalid**: Pod doesn't exist in RunPod (may have been deleted)
+
+### GPU Specifications
+
+GPU specs follow the format: `<count>x<model>`
+
+**Examples:**
+- `1xH100`
+- `2xA100`
+- `4xRTX4090`
+- `8xV100`
+
+The model name is normalized to uppercase internally.
+
+### Storage Specifications
+
+Storage specs support human-readable formats:
+
+- `500GB` → 500 gigabytes
+- `1TB` → 1000 gigabytes
+- `2.5TB` → 2500 gigabytes
+
+Internally converted to integer gigabytes.
+
+### Alias Naming
+
+Aliases must:
+- Be valid SSH host names
+- Be unique within your configuration
+- Not contain spaces or special characters (use hyphens/underscores)
+
+**Good aliases:**
+- `my-pod-1`
+- `training_gpu`
+- `dev-h100`
+
+**Bad aliases:**
+- `my pod` (contains space)
+- `pod@123` (contains special char)
+
+### Template Auto-Numbering
+
+Templates with `{i}` placeholders automatically find the next available number:
+
+```bash
+# Template: "train-{i}"
+rp create --template training  # Creates train-1
+rp create --template training  # Creates train-2
+rp destroy train-1              # Remove train-1
+rp create --template training  # Creates train-1 (reuses lowest available)
+```
+
+The algorithm finds the lowest `i ≥ 1` where the formatted alias doesn't exist.
+
+### SSH Config Management
+
+SSH blocks are identified by the marker comment:
+```
+# rp:managed alias=<alias> pod_id=<id> updated=<timestamp>
+```
+
+All lines between this marker and the next `Host` directive (or end of file) are managed by `rp`.
+
+**Operations:**
+- **Create/Start**: Adds or updates the SSH block
+- **Stop**: Removes the SSH block
+- **Destroy**: Removes the SSH block
+- **Clean**: Removes orphaned blocks (where alias no longer exists)
+
+### Scheduler Implementation
+
+**macOS (launchd):**
+- Agent runs every 60 seconds
+- Executes `rp scheduler-tick`
+- Checks for tasks where `when_epoch <= current_time`
+- Executes due tasks and marks them completed/failed
+
+**Other platforms:**
+- Scheduling is stored but not automatically executed
+- Manual execution required: `rp scheduler-tick`
+
+### API Client
+
+The tool uses the RunPod Python SDK internally:
+
+```python
+import runpod
+runpod.api_key = "<your_api_key>"
+```
+
+**API operations:**
+- `runpod.get_pod()`: Get pod details
+- `runpod.create_pod()`: Create new pod
+- `runpod.start_pod()`: Start stopped pod
+- `runpod.stop_pod()`: Stop running pod
+- `runpod.terminate_pod()`: Permanently delete pod
+
+### Error Handling
+
+Errors are handled gracefully with informative messages:
+
+- **Validation errors**: Invalid input (GPU spec, storage spec, time format)
+- **Not found errors**: Alias or pod doesn't exist
+- **Already exists errors**: Alias or template already exists (use `--force`)
+- **API errors**: RunPod API failures (authentication, quota, etc.)
+- **Scheduling errors**: Invalid time formats, conflicting options
+
+### Data Models
+
+The tool uses Pydantic models for type safety:
+
+- `Pod`: Pod instance with metadata
+- `PodCreateRequest`: Pod creation parameters
+- `PodTemplate`: Template configuration
+- `PodConfig`: Per-pod settings
+- `ScheduleTask`: Scheduled task
+- `SSHConfig`: SSH configuration
+- `AppConfig`: Application configuration
+
+### Architecture
+
+**Layers:**
+1. **CLI Layer** (`main.py`, `commands.py`): Command-line interface using Typer
+2. **Service Layer** (`pod_manager.py`, `scheduler.py`, `ssh_manager.py`): Business logic
+3. **Data Layer** (`models.py`, `config.py`): Data structures and persistence
+4. **API Layer** (`api_client.py`): RunPod API integration
+
+---
+
+## Troubleshooting
+
+### API Key Issues
+
+**Problem:** "API key not found"
+
+**Solution:**
+```bash
+# Set environment variable
+export RUNPOD_API_KEY="your_key"
+
+# Or save to config
+echo "your_key" > ~/.config/rp/runpod_api_key
+```
+
+---
+
+### SSH Connection Issues
+
+**Problem:** "Permission denied" or "Connection refused"
+
+**Solutions:**
+1. Check pod is running: `rp list`
+2. Start pod if stopped: `rp start <alias>`
+3. Check SSH config exists: `cat ~/.ssh/config | grep <alias>`
+4. Update SSH config: `rp start <alias>` (refreshes IP/port)
+
+---
+
+### Scheduler Not Running
+
+**Problem:** Scheduled tasks not executing (macOS)
+
+**Solutions:**
+```bash
+# Check if agent is loaded
+launchctl print gui/$(id -u)/com.rp.scheduler
+
+# Restart agent
+launchctl kickstart -k gui/$(id -u)/com.rp.scheduler
+
+# Check logs
+tail -f ~/Library/Logs/rp-scheduler.log
+```
+
+---
+
+### Invalid Pod Status
+
+**Problem:** Pod shows as "invalid" in `rp list`
+
+**Causes:**
+- Pod was deleted through RunPod website
+- Pod was terminated by RunPod (e.g., out of credits)
+
+**Solution:**
+```bash
+# Clean up invalid aliases
+rp clean
+```
+
+---
+
+### Template Not Found
+
+**Problem:** "Template 'foo' not found"
+
+**Solution:**
+```bash
+# List all templates
+rp template list
+
+# Create template if it doesn't exist
+rp template create foo "foo-{i}" --gpu 2xA100 --storage 1TB
+```
+
+---
+
+## Examples Repository
+
+### Example: Development Workflow
+
+```bash
+# One-time setup
+rp template create dev "dev-{i}" --gpu 1xRTX4090 --storage 500GB
+rp config set dev-1 path /workspace/myproject
+
+# Daily workflow
+rp create --template dev           # Create dev-1
+rp cursor dev-1                     # Open Cursor
+# ... work on project ...
+rp stop dev-1 --schedule-in "8h"    # Auto-stop in 8 hours
+
+# Next day
+rp start dev-1                      # Resume working
+rp cursor dev-1                     # Continue where you left off
+```
+
+---
+
+### Example: Training Jobs
+
+```bash
+# Template for training runs
+rp template create train "train-{i}" --gpu 4xA100 --storage 2TB
+
+# Start multiple training runs
+rp create --template train  # train-1
+rp create --template train  # train-2
+
+# Schedule automatic shutdown
+rp stop train-1 --schedule-in "24h"
+rp stop train-2 --schedule-in "24h"
+
+# Monitor progress
+rp shell train-1
+```
+
+---
+
+### Example: Custom Setup Scripts
+
+**~/.config/rp/setup_remote.sh:**
+```bash
+#!/bin/bash
+set -ex
+
+# Install system packages
+apt-get update
+apt-get install -y vim git tmux htop nvtop
+
+# Install Python tools
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Configure Git
+git config --global user.name "Your Name"
+git config --global user.email "your@email.com"
+
+# Set up environment
+echo 'export HF_HOME=/workspace/huggingface' >> ~/.bashrc
+echo 'export UV_CACHE_DIR=/workspace/uv' >> ~/.bashrc
+
+# Clone repository
+cd /workspace
+git clone git@github.com:yourname/yourrepo.git
+```
+
+**~/.config/rp/setup_local.sh:**
+```bash
+#!/bin/bash
+set -e
+
+# Copy SSH keys
+scp ~/.ssh/github_key $POD_HOST:/root/.ssh/
+scp ~/.ssh/config $POD_HOST:/root/.ssh/
+
+# Copy environment files
+scp ~/.env.production $POD_HOST:/workspace/.env
+```
+
+---
+
+## Appendix: Complete Command List
+
+| Command | Description |
+|---------|-------------|
+| `rp create` | Create a new pod |
+| `rp start` | Start a stopped pod |
+| `rp stop` | Stop a running pod |
+| `rp destroy` | Terminate a pod permanently |
+| `rp add` | Add existing pod to configuration |
+| `rp delete` | Remove alias from configuration |
+| `rp list` | List all pods with status |
+| `rp clean` | Remove invalid aliases and SSH config |
+| `rp cursor` | Open Cursor editor connected to pod |
+| `rp shell` | Open SSH shell to pod |
+| `rp config set` | Set pod configuration value |
+| `rp config get` | Get pod configuration value |
+| `rp config list` | List all pod configuration |
+| `rp template create` | Create a pod template |
+| `rp template list` | List all templates |
+| `rp template delete` | Delete a template |
+| `rp schedule list` | List scheduled tasks |
+| `rp schedule cancel` | Cancel a scheduled task |
+| `rp schedule clean` | Remove completed tasks |
+| `rp scheduler-tick` | Execute due tasks (internal) |
+
+---
+
+## Version Information
+
+This documentation is for `rp` version 0.1.0.
+
+**Requirements:**
+- Python 3.13+
+- uv package manager
+- macOS (for automatic scheduling)
+
+**Project Repository:** https://github.com/Arrrlex/rp
+
+---
+
+## Contributing
+
+For issues, feature requests, or contributions, please visit the GitHub repository.
+
+---
+
+*This documentation was generated to provide complete context for both humans and LLMs working with the `rp` tool.*

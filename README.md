@@ -2,6 +2,19 @@
 
 This is a little wrapper around runpod's python API. It provides some neat things like scheduling pod shutdowns, running scripts automatically on starting/creating a pod, and managing pod templates for quick deployment.
 
+## 📚 Complete Documentation
+
+**For comprehensive documentation of all commands, options, and configuration details, see [docs.md](docs.md).**
+
+The `docs.md` file contains:
+- Complete command reference with all options
+- Detailed configuration file documentation
+- Environment variables and settings
+- Workflow guides and examples
+- Technical details and troubleshooting
+
+**💡 Tip for LLM users:** Give `docs.md` to your LLM for complete context on the `rp` tool. It's structured to provide everything needed to understand and work with the tool.
+
 ## Installation
 
 Install using [uv](https://docs.astral.sh/uv/):
