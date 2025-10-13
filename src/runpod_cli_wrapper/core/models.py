@@ -165,6 +165,9 @@ class PodCreateRequest(BaseModel):
     alias: str = Field(description="Alias for the pod")
     gpu_spec: GPUSpec = Field(description="GPU specification")
     volume_gb: int = Field(ge=10, description="Storage volume size in GB")
+    container_disk_gb: int = Field(
+        default=20, ge=10, description="Container disk size in GB"
+    )
     force: bool = Field(default=False, description="Overwrite existing alias")
     dry_run: bool = Field(default=False, description="Show actions without executing")
 
@@ -186,6 +189,9 @@ class PodTemplate(BaseModel):
     gpu_spec: str = Field(description="GPU specification string (e.g., '2xA100')")
     storage_spec: str = Field(
         description="Storage specification string (e.g., '500GB')"
+    )
+    container_disk_spec: str | None = Field(
+        default=None, description="Container disk specification string (e.g., '20GB')"
     )
     image: str | None = Field(
         default=None, description="Docker image to use (None uses default)"

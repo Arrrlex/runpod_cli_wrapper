@@ -141,6 +141,7 @@ class PodManager:
             gpu_type_id=gpu_type_id,
             gpu_count=request.gpu_spec.count,
             volume_in_gb=request.volume_gb,
+            container_disk_in_gb=request.container_disk_gb,
             support_public_ip=True,
             start_ssh=True,
             ports=request.ports,
@@ -282,11 +283,16 @@ class PodManager:
             "dry_run": dry_run,
         }
 
+        # Add container disk if specified in template
+        if template.container_disk_spec is not None:
+            container_disk_gb = parse_storage_spec(template.container_disk_spec)
+            request_kwargs["container_disk_gb"] = container_disk_gb
+
         # Add image if specified in template
         if template.image is not None:
             request_kwargs["image"] = template.image
 
-        request = PodCreateRequest(**request_kwargs)
+        request = PodCreateRequest(**request_kwargs)  # type: ignore[arg-type]
 
         return self.create_pod(request)
 

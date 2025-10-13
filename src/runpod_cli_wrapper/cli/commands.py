@@ -62,6 +62,7 @@ def create_command(  # noqa: PLR0915  # Function complexity acceptable for main 
     alias: str | None = None,
     gpu: str | None = None,
     storage: str | None = None,
+    container_disk: str | None = None,
     template: str | None = None,
     image: str | None = None,
     force: bool = False,
@@ -72,9 +73,9 @@ def create_command(  # noqa: PLR0915  # Function complexity acceptable for main 
         pod_manager = get_pod_manager()
 
         # Validate arguments
-        if template and (alias or gpu or storage):
+        if template and (alias or gpu or storage or container_disk):
             raise ValueError(
-                "Cannot specify --template with individual parameters (--alias, --gpu, --storage)"
+                "Cannot specify --template with individual parameters (--alias, --gpu, --storage, --container-disk)"
             )
 
         if not template and not (alias and gpu and storage):
@@ -131,16 +132,21 @@ def create_command(  # noqa: PLR0915  # Function complexity acceptable for main 
                 "dry_run": dry_run,
             }
 
+            # Add container disk if specified, otherwise use default (20GB)
+            if container_disk is not None:
+                container_disk_gb = parse_storage_spec(container_disk)
+                request_kwargs["container_disk_gb"] = container_disk_gb
+
             # Add image if specified
             if image is not None:
                 request_kwargs["image"] = image
 
-            request = PodCreateRequest(**request_kwargs)
+            request = PodCreateRequest(**request_kwargs)  # type: ignore[arg-type]
 
             console.print(
                 f"🚀 Creating pod '[bold]{alias}[/bold]': "
                 f"image=[dim]{request.image}[/dim], "
-                f"GPU={gpu_spec}, volume={volume_gb}GB"
+                f"GPU={gpu_spec}, volume={volume_gb}GB, container_disk={request.container_disk_gb}GB"
             )
 
             if dry_run:
@@ -491,6 +497,7 @@ def template_create_command(
     alias_template: str,
     gpu: str,
     storage: str,
+    container_disk: str | None = None,
     image: str | None = None,
     force: bool = False,
 ) -> None:
@@ -503,11 +510,15 @@ def template_create_command(
             "storage_spec": storage,
         }
 
+        # Add container disk if specified
+        if container_disk is not None:
+            template_kwargs["container_disk_spec"] = container_disk
+
         # Add image if specified
         if image is not None:
             template_kwargs["image"] = image
 
-        template = PodTemplate(**template_kwargs)
+        template = PodTemplate(**template_kwargs)  # type: ignore[arg-type]
 
         pod_manager = get_pod_manager()
         pod_manager.add_template(template, force)
@@ -516,6 +527,8 @@ def template_create_command(
         console.print(f"   Alias template: {alias_template}")
         console.print(f"   GPU: {gpu}")
         console.print(f"   Storage: {storage}")
+        if container_disk is not None:
+            console.print(f"   Container disk: {container_disk}")
         if image is not None:
             console.print(f"   Image: {image}")
 
@@ -540,15 +553,22 @@ def template_list_command() -> None:
         table.add_column("Alias Template", style="magenta")
         table.add_column("GPU", style="green")
         table.add_column("Storage", style="yellow")
+        table.add_column("Container Disk", style="yellow")
         table.add_column("Image", style="blue")
 
         for template in templates:
             image_display = template.image if template.image else "(default)"
+            container_disk_display = (
+                template.container_disk_spec
+                if template.container_disk_spec
+                else "(default: 20GB)"
+            )
             table.add_row(
                 template.identifier,
                 template.alias_template,
                 template.gpu_spec,
                 template.storage_spec,
+                container_disk_display,
                 image_display,
             )
 

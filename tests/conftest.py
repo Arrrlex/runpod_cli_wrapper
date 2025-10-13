@@ -173,7 +173,7 @@ class TestPodManager:
 
 
 @pytest.fixture(scope="module")
-def test_pod_manager(_setup_runpod_api):
+def test_pod_manager(setup_runpod_api):  # noqa: ARG001
     """Provide a test pod manager with automatic cleanup."""
     manager = TestPodManager()
     yield manager
