@@ -7,7 +7,7 @@ This is a little wrapper around runpod's python API. It provides some neat thing
 Install using [uv](https://docs.astral.sh/uv/):
 
 ```bash
-uv tool install https://github.com/Arrrlex/runpod_cli_wrapper.git
+uv tool install https://github.com/Arrrlex/rp.git
 ```
 
 ## Upgrading
