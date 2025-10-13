@@ -1096,15 +1096,90 @@ Pods can have three statuses:
 
 ### GPU Specifications
 
-GPU specs follow the format: `<count>x<model>`
+GPU specifications are parsed and resolved through a two-stage process.
 
-**Examples:**
-- `1xH100`
-- `2xA100`
-- `4xRTX4090`
-- `8xV100`
+#### Format
 
-The model name is normalized to uppercase internally.
+GPU specs follow the format: `[<count>x]<model>`
+
+Where:
+- `<count>` (optional): Number of GPUs (1, 2, 3, etc.). If omitted, defaults to 1
+- `x`: Separator between count and model (case-insensitive)
+- `<model>`: GPU model identifier (case-insensitive)
+
+#### Parsing Examples
+
+**With count:**
+- `2xA100` → 2 GPUs, model "A100"
+- `4xH100-SXM` → 4 GPUs, model "H100-SXM"
+- `8xRTX4090` → 8 GPUs, model "RTX4090"
+
+**Without count (defaults to 1):**
+- `H100` → 1 GPU, model "H100"
+- `h100-nvl` → 1 GPU, model "H100-NVL"
+- `A100-PCIE` → 1 GPU, model "A100-PCIE"
+
+**Edge cases:**
+- Model names are normalized to uppercase internally
+- `x` can appear in the model name (e.g., `rtx4090` is valid)
+- If `x` appears but the prefix isn't numeric, it's treated as part of the model name
+
+#### GPU Model Resolution
+
+After parsing, the model identifier is resolved to a specific RunPod GPU type ID using the following algorithm (see `api_client.py:find_gpu_type_id`):
+
+1. **Query RunPod API**: Fetch list of available GPU types
+2. **Match by identifier**: Search for GPUs where the model identifier appears in either:
+   - The GPU's internal ID (e.g., `NVIDIA H100 PCIe`)
+   - The GPU's display name (e.g., `H100 PCIe 80GB`)
+3. **Prefer highest VRAM**: If multiple variants match (e.g., different VRAM sizes), select the one with the highest memory
+4. **Error if no match**: If no GPU matches the identifier, raise an error with suggestions
+
+#### Common GPU Identifiers
+
+**H100 variants:**
+- `H100` or `H100-SXM` → NVIDIA H100 SXM (80GB, highest VRAM variant preferred)
+- `H100-PCIE` → NVIDIA H100 PCIe (80GB)
+- `H100-NVL` → NVIDIA H100 NVL (94GB)
+
+**A100 variants:**
+- `A100` → NVIDIA A100 (80GB, highest VRAM variant preferred)
+- `A100-SXM` → NVIDIA A100 SXM (80GB SXM variant)
+- `A100-PCIE` → NVIDIA A100 PCIe (40GB or 80GB, highest preferred)
+
+**Other GPUs:**
+- `L40S` → NVIDIA L40S (48GB)
+- `RTX4090` → NVIDIA RTX 4090 (24GB)
+- `A40` → NVIDIA A40 (48GB)
+- `V100` → NVIDIA V100 (16GB or 32GB, highest preferred)
+
+#### Full Examples
+
+```bash
+# Simple specifications
+rp create my-pod --gpu H100 --storage 500GB           # 1x H100 (highest VRAM)
+rp create my-pod --gpu 2xA100 --storage 1TB           # 2x A100 (highest VRAM)
+rp create my-pod --gpu RTX4090 --storage 500GB        # 1x RTX 4090
+
+# Specific variants
+rp create my-pod --gpu 4xH100-PCIE --storage 2TB      # 4x H100 PCIe
+rp create my-pod --gpu 2xH100-SXM --storage 1TB       # 2x H100 SXM
+rp create my-pod --gpu H100-NVL --storage 500GB       # 1x H100 NVL (94GB)
+rp create my-pod --gpu 8xA100-SXM --storage 4TB       # 8x A100 SXM
+
+# Case insensitive
+rp create my-pod --gpu 2xa100 --storage 1TB           # Same as 2xA100
+rp create my-pod --gpu h100-pcie --storage 500GB      # Same as H100-PCIE
+```
+
+#### Troubleshooting GPU Specs
+
+If you receive an error like `Could not find GPU type matching 'XXX'`:
+
+1. **Check available GPUs**: Use the RunPod website or API to see what's currently available
+2. **Try generic identifiers**: Use `H100` instead of `H100-XXX` to let the tool pick the best variant
+3. **Check spelling**: GPU identifiers are matched as substrings, so `H100` will match `H100-SXM`, `H100-PCIE`, etc.
+4. **Verify availability**: Some GPU types may not be available in your region or tier
 
 ### Storage Specifications
 
