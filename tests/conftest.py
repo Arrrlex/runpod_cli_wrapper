@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 import runpod
 
-from runpod_cli_wrapper.config import CONFIG_DIR, ensure_config_dir_exists
+from rp.config import CONFIG_DIR, ensure_config_dir_exists
 
 
 @pytest.fixture(scope="session")
@@ -41,7 +41,7 @@ def temp_config_dir():
     with tempfile.TemporaryDirectory() as temp_dir:
         original_config_dir = CONFIG_DIR
         # Patch the config module to use temp directory
-        from runpod_cli_wrapper import config
+        from rp import config
 
         config.CONFIG_DIR = Path(temp_dir) / "rp"
         config.POD_CONFIG_FILE = config.CONFIG_DIR / "pods.json"

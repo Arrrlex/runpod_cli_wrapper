@@ -30,5 +30,5 @@ repos:
     hooks:
       - id: ty
         name: ty check
-        entry: uvx ty check . --project src/runpod_cli_wrapper --python .venv
+        entry: uvx ty check . --project src/rp --python .venv
         language: system

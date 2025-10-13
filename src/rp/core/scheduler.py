@@ -18,7 +18,7 @@ from dateutil import parser as date_parser
 from dateutil import tz
 from rich.console import Console
 
-from runpod_cli_wrapper.config import (
+from rp.config import (
     API_KEY_FILE,
     LAUNCH_AGENTS_DIR,
     LAUNCHD_LABEL,
@@ -28,8 +28,8 @@ from runpod_cli_wrapper.config import (
     SCHEDULER_LOG_FILE,
     ensure_config_dir_exists,
 )
-from runpod_cli_wrapper.core.models import ScheduleTask, TaskStatus
-from runpod_cli_wrapper.utils.errors import SchedulingError
+from rp.core.models import ScheduleTask, TaskStatus
+from rp.utils.errors import SchedulingError
 
 
 class Scheduler:

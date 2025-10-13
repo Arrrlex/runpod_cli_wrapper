@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 
 import typer
 
-from runpod_cli_wrapper.config import (
+from rp.config import (
     CONFIG_DIR,
     MARKER_PREFIX,
     POD_CONFIG_FILE,

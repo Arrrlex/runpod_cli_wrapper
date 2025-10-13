@@ -15,7 +15,7 @@ uv tool install https://github.com/Arrrlex/rp.git
 To upgrade to the latest version:
 
 ```bash
-uv tool upgrade runpod-cli-wrapper
+uv tool upgrade rp
 ```
 
 ## Usage

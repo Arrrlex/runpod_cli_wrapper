@@ -10,9 +10,9 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 
-from runpod_cli_wrapper.config import MARKER_PREFIX, SSH_CONFIG_FILE
-from runpod_cli_wrapper.core.models import SSHConfig
-from runpod_cli_wrapper.utils.errors import SSHError
+from rp.config import MARKER_PREFIX, SSH_CONFIG_FILE
+from rp.core.models import SSHConfig
+from rp.utils.errors import SSHError
 
 
 class SSHManager:

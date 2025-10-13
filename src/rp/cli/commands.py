@@ -11,7 +11,7 @@ import typer
 from dateutil import tz
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
-from runpod_cli_wrapper.cli.utils import (
+from rp.cli.utils import (
     console,
     display_pods_table,
     display_schedule_table,
@@ -21,11 +21,11 @@ from runpod_cli_wrapper.cli.utils import (
     run_setup_scripts,
     setup_api_client,
 )
-from runpod_cli_wrapper.core.models import PodCreateRequest, PodTemplate, SSHConfig
-from runpod_cli_wrapper.core.pod_manager import PodManager
-from runpod_cli_wrapper.core.scheduler import Scheduler
-from runpod_cli_wrapper.core.ssh_manager import SSHManager
-from runpod_cli_wrapper.utils.errors import SchedulingError
+from rp.core.models import PodCreateRequest, PodTemplate, SSHConfig
+from rp.core.pod_manager import PodManager
+from rp.core.scheduler import Scheduler
+from rp.core.ssh_manager import SSHManager
+from rp.utils.errors import SchedulingError
 
 # Initialize services (will be properly injected in production)
 _pod_manager: PodManager | None = None

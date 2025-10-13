@@ -7,7 +7,7 @@ These tests verify CLI utility functions, parsing, and error handling.
 import pytest
 import typer
 
-from runpod_cli_wrapper.cli.utils import parse_gpu_spec, parse_storage_spec
+from rp.cli.utils import parse_gpu_spec, parse_storage_spec
 
 
 class TestParseGPUSpec:

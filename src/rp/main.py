@@ -10,7 +10,7 @@ import contextlib
 import typer
 from typer.core import TyperGroup
 
-from runpod_cli_wrapper.cli.commands import (
+from rp.cli.commands import (
     add_command,
     clean_command,
     config_get_command,
@@ -32,7 +32,7 @@ from runpod_cli_wrapper.cli.commands import (
     template_delete_command,
     template_list_command,
 )
-from runpod_cli_wrapper.core.scheduler import Scheduler
+from rp.core.scheduler import Scheduler
 
 
 class OrderedGroup(TyperGroup):

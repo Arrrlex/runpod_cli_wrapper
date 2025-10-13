@@ -10,8 +10,8 @@ from typing import Any
 
 import runpod
 
-from runpod_cli_wrapper.core.models import PodStatus
-from runpod_cli_wrapper.utils.errors import APIError, PodError
+from rp.core.models import PodStatus
+from rp.utils.errors import APIError, PodError
 
 
 class RunPodAPIClient:

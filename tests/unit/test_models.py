@@ -6,7 +6,7 @@ These tests verify model validation, serialization, and business logic.
 
 import pytest
 
-from runpod_cli_wrapper.core.models import (
+from rp.core.models import (
     AppConfig,
     GPUSpec,
     Pod,
@@ -357,14 +357,14 @@ class TestPodConfig:
 
     def test_empty_config(self):
         """Test creating empty pod config."""
-        from runpod_cli_wrapper.core.models import PodConfig
+        from rp.core.models import PodConfig
 
         config = PodConfig()
         assert config.path is None
 
     def test_with_path(self):
         """Test creating pod config with path."""
-        from runpod_cli_wrapper.core.models import PodConfig
+        from rp.core.models import PodConfig
 
         config = PodConfig(path="/workspace/my-project")
         assert config.path == "/workspace/my-project"
@@ -375,7 +375,7 @@ class TestPodMetadata:
 
     def test_basic_metadata(self):
         """Test creating pod metadata with just ID."""
-        from runpod_cli_wrapper.core.models import PodMetadata
+        from rp.core.models import PodMetadata
 
         metadata = PodMetadata(pod_id="pod123")
         assert metadata.pod_id == "pod123"
@@ -383,7 +383,7 @@ class TestPodMetadata:
 
     def test_metadata_with_config(self):
         """Test creating pod metadata with config."""
-        from runpod_cli_wrapper.core.models import PodConfig, PodMetadata
+        from rp.core.models import PodConfig, PodMetadata
 
         metadata = PodMetadata(
             pod_id="pod123",

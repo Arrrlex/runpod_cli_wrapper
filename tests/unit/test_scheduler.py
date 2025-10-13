@@ -10,9 +10,9 @@ from unittest.mock import patch
 import pytest
 from dateutil import tz
 
-from runpod_cli_wrapper.core.models import TaskStatus
-from runpod_cli_wrapper.core.scheduler import Scheduler
-from runpod_cli_wrapper.utils.errors import SchedulingError
+from rp.core.models import TaskStatus
+from rp.core.scheduler import Scheduler
+from rp.utils.errors import SchedulingError
 
 
 class TestScheduler:
@@ -21,7 +21,7 @@ class TestScheduler:
     @pytest.fixture
     def scheduler(self):
         """Create a scheduler instance for testing."""
-        with patch("runpod_cli_wrapper.core.scheduler.SCHEDULE_FILE") as mock_file:
+        with patch("rp.core.scheduler.SCHEDULE_FILE") as mock_file:
             mock_file.exists.return_value = False
             mock_file.open.side_effect = FileNotFoundError()
             scheduler = Scheduler()

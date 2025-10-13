@@ -17,10 +17,10 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
-from runpod_cli_wrapper.config import API_KEY_FILE, LOCAL_SETUP_FILE, REMOTE_SETUP_FILE
-from runpod_cli_wrapper.core.models import GPUSpec, Pod, PodStatus, ScheduleTask
-from runpod_cli_wrapper.utils.api_client import RunPodAPIClient
-from runpod_cli_wrapper.utils.errors import RunPodCLIError
+from rp.config import API_KEY_FILE, LOCAL_SETUP_FILE, REMOTE_SETUP_FILE
+from rp.core.models import GPUSpec, Pod, PodStatus, ScheduleTask
+from rp.utils.api_client import RunPodAPIClient
+from rp.utils.errors import RunPodCLIError
 
 console = Console()
 
@@ -232,7 +232,7 @@ def run_local_command(command_list: list[str], **env_vars) -> None:
             typer.echo("--- STDERR ---", err=True)
             typer.echo(e.stderr.strip(), err=True)
 
-        from runpod_cli_wrapper.utils.errors import SetupScriptError
+        from rp.utils.errors import SetupScriptError
 
         raise SetupScriptError.local_script_failed(e.returncode, e.stderr or "") from e
 
@@ -253,7 +253,7 @@ def run_local_command_stream(command_list: list[str]) -> None:
                 typer.echo(line.rstrip())
             returncode = proc.wait()
             if returncode != 0:
-                from runpod_cli_wrapper.utils.errors import SetupScriptError
+                from rp.utils.errors import SetupScriptError
 
                 raise SetupScriptError.local_script_failed(
                     returncode, "See output above"

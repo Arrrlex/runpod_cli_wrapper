@@ -7,16 +7,16 @@ including creation, lifecycle management, and status tracking.
 
 import json
 
-from runpod_cli_wrapper.config import POD_CONFIG_FILE, ensure_config_dir_exists
-from runpod_cli_wrapper.core.models import (
+from rp.config import POD_CONFIG_FILE, ensure_config_dir_exists
+from rp.core.models import (
     AppConfig,
     Pod,
     PodCreateRequest,
     PodStatus,
     PodTemplate,
 )
-from runpod_cli_wrapper.utils.api_client import RunPodAPIClient
-from runpod_cli_wrapper.utils.errors import AliasError, PodError
+from rp.utils.api_client import RunPodAPIClient
+from rp.utils.errors import AliasError, PodError
 
 
 class PodManager:
@@ -220,7 +220,7 @@ class PodManager:
             ip, port = self.api_client.extract_network_info(pod_data)
 
             if not ip or not port:
-                from runpod_cli_wrapper.utils.errors import SSHError
+                from rp.utils.errors import SSHError
 
                 raise SSHError.missing_network_info(pod.id)
 
@@ -270,7 +270,7 @@ class PodManager:
         alias = template.alias_template.format(i=next_index)
 
         # Create the pod request
-        from runpod_cli_wrapper.cli.utils import parse_gpu_spec, parse_storage_spec
+        from rp.cli.utils import parse_gpu_spec, parse_storage_spec
 
         gpu_spec = parse_gpu_spec(template.gpu_spec)
         volume_gb = parse_storage_spec(template.storage_spec)

@@ -9,14 +9,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 import typer
 
-from runpod_cli_wrapper.cli.commands import cursor_command, shell_command
-from runpod_cli_wrapper.utils.errors import AliasError
+from rp.cli.commands import cursor_command, shell_command
+from rp.utils.errors import AliasError
 
 
 class TestCursorCommand:
     """Test cursor command functionality."""
 
-    @patch("runpod_cli_wrapper.cli.commands.get_pod_manager")
+    @patch("rp.cli.commands.get_pod_manager")
     @patch("subprocess.run")
     def test_cursor_command_default_path(self, mock_subprocess, mock_get_pod_manager):
         """Test cursor command with default workspace path."""
@@ -46,7 +46,7 @@ class TestCursorCommand:
             check=True,
         )
 
-    @patch("runpod_cli_wrapper.cli.commands.get_pod_manager")
+    @patch("rp.cli.commands.get_pod_manager")
     @patch("subprocess.run")
     def test_cursor_command_uses_configured_default(
         self, mock_subprocess, mock_get_pod_manager
@@ -74,7 +74,7 @@ class TestCursorCommand:
             check=True,
         )
 
-    @patch("runpod_cli_wrapper.cli.commands.get_pod_manager")
+    @patch("rp.cli.commands.get_pod_manager")
     @patch("subprocess.run")
     def test_cursor_command_custom_path(self, mock_subprocess, mock_get_pod_manager):
         """Test cursor command with custom path overrides config."""
@@ -99,7 +99,7 @@ class TestCursorCommand:
             check=True,
         )
 
-    @patch("runpod_cli_wrapper.cli.commands.get_pod_manager")
+    @patch("rp.cli.commands.get_pod_manager")
     @patch("subprocess.run")
     def test_cursor_command_cursor_not_found(
         self, mock_subprocess, mock_get_pod_manager
@@ -117,7 +117,7 @@ class TestCursorCommand:
         with pytest.raises(typer.Exit):
             cursor_command("test-alias")
 
-    @patch("runpod_cli_wrapper.cli.commands.get_pod_manager")
+    @patch("rp.cli.commands.get_pod_manager")
     def test_cursor_command_invalid_alias(self, mock_get_pod_manager):
         """Test cursor command with invalid alias."""
         # Setup mock pod manager to raise error
@@ -133,7 +133,7 @@ class TestCursorCommand:
 class TestShellCommand:
     """Test shell command functionality."""
 
-    @patch("runpod_cli_wrapper.cli.commands.get_pod_manager")
+    @patch("rp.cli.commands.get_pod_manager")
     @patch("subprocess.run")
     def test_shell_command_success(self, mock_subprocess, mock_get_pod_manager):
         """Test shell command with successful connection."""
@@ -158,7 +158,7 @@ class TestShellCommand:
             ["ssh", "-A", "test-alias"], check=False
         )
 
-    @patch("runpod_cli_wrapper.cli.commands.get_pod_manager")
+    @patch("rp.cli.commands.get_pod_manager")
     @patch("subprocess.run")
     def test_shell_command_connection_closed(
         self, mock_subprocess, mock_get_pod_manager
@@ -181,7 +181,7 @@ class TestShellCommand:
             ["ssh", "-A", "test-alias"], check=False
         )
 
-    @patch("runpod_cli_wrapper.cli.commands.get_pod_manager")
+    @patch("rp.cli.commands.get_pod_manager")
     @patch("subprocess.run")
     def test_shell_command_with_configured_path(
         self, mock_subprocess, mock_get_pod_manager
@@ -211,7 +211,7 @@ class TestShellCommand:
             check=False,
         )
 
-    @patch("runpod_cli_wrapper.cli.commands.get_pod_manager")
+    @patch("rp.cli.commands.get_pod_manager")
     def test_shell_command_invalid_alias(self, mock_get_pod_manager):
         """Test shell command with invalid alias."""
         # Setup mock pod manager to raise error

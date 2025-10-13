@@ -1238,6 +1238,50 @@ wheels = [
 ]
 
 [[package]]
+name = "rp"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "pydantic" },
+    { name = "python-dateutil" },
+    { name = "rich" },
+    { name = "runpod" },
+    { name = "typer" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "factory-boy" },
+    { name = "pydantic" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-mock" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "factory-boy", marker = "extra == 'dev'", specifier = ">=3.3" },
+    { name = "pydantic", specifier = ">=2.0" },
+    { name = "pydantic", marker = "extra == 'dev'", specifier = ">=2.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0" },
+    { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.10" },
+    { name = "python-dateutil", specifier = ">=2.9.0.post0" },
+    { name = "rich", specifier = ">=14.1.0" },
+    { name = "runpod", specifier = ">=1.7.13" },
+    { name = "typer", specifier = ">=0.16.0" },
+]
+provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "ruff", specifier = ">=0.12.8" }]
+
+[[package]]
 name = "ruff"
 version = "0.12.8"
 source = { registry = "https://pypi.org/simple" }
@@ -1291,50 +1335,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/ad/d3/2b27cd36c9a770ed3
 wheels = [
     { url = "https://files.pythonhosted.org/packages/5a/8c/2f556c9e275f956ecdd14a9a73b0129ed98e687f16df026e23be3db42b18/runpod-1.7.13-py3-none-any.whl", hash = "sha256:033ae142027d36f0c1db95103ef6d0b23fd9ec875fd8dba5154e3c519d3bcf70", size = 154593, upload-time = "2025-07-17T05:30:53.09Z" },
 ]
-
-[[package]]
-name = "runpod-cli-wrapper"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "pydantic" },
-    { name = "python-dateutil" },
-    { name = "rich" },
-    { name = "runpod" },
-    { name = "typer" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "factory-boy" },
-    { name = "pydantic" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "pytest-mock" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "factory-boy", marker = "extra == 'dev'", specifier = ">=3.3" },
-    { name = "pydantic", specifier = ">=2.0" },
-    { name = "pydantic", marker = "extra == 'dev'", specifier = ">=2.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0" },
-    { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.10" },
-    { name = "python-dateutil", specifier = ">=2.9.0.post0" },
-    { name = "rich", specifier = ">=14.1.0" },
-    { name = "runpod", specifier = ">=1.7.13" },
-    { name = "typer", specifier = ">=0.16.0" },
-]
-provides-extras = ["dev"]
-
-[package.metadata.requires-dev]
-dev = [{ name = "ruff", specifier = ">=0.12.8" }]
 
 [[package]]
 name = "s3transfer"

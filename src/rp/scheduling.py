@@ -21,7 +21,7 @@ from dateutil import parser as date_parser
 from dateutil import tz
 from rich.console import Console
 
-from runpod_cli_wrapper.config import (
+from rp.config import (
     API_KEY_FILE,
     LAUNCH_AGENTS_DIR,
     LAUNCHD_LABEL,
