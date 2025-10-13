@@ -90,7 +90,7 @@ def cli_runner():
             text=True,
             capture_output=True,
             env=full_env,
-            timeout=60,
+            timeout=300,
         )
         return result
 

@@ -14,7 +14,7 @@ class TestScheduling:
 
     def test_schedule_stop_and_cancel(self, cli_runner, shared_test_pod):
         """Test scheduling a pod stop and then cancelling it."""
-        alias = "schedule-test"
+        alias = "test1"
         pod_id = shared_test_pod["pod_id"]
 
         # Add pod to alias system
@@ -63,7 +63,7 @@ class TestScheduling:
 
     def test_schedule_at_time_format(self, cli_runner, shared_test_pod):
         """Test different time format options for scheduling."""
-        alias = "schedule-time-test"
+        alias = "test2"
         pod_id = shared_test_pod["pod_id"]
 
         # Add pod to alias system
@@ -83,8 +83,8 @@ class TestScheduling:
         assert result.returncode == 0
         assert alias in result.stdout
 
-        # Clean up - clear completed tasks to remove our test tasks
-        result = cli_runner(["schedule", "clear-completed"])
+        # Clean up - clean completed tasks to remove our test tasks
+        result = cli_runner(["schedule", "clean"])
         assert result.returncode == 0
 
         # Clean up alias
@@ -93,7 +93,7 @@ class TestScheduling:
 
     def test_dry_run_scheduling(self, cli_runner, shared_test_pod):
         """Test dry-run mode for scheduling."""
-        alias = "dry-run-test"
+        alias = "test3"
         pod_id = shared_test_pod["pod_id"]
 
         # Add pod to alias system
@@ -124,7 +124,7 @@ class TestScheduling:
 
     def test_invalid_schedule_formats(self, cli_runner, shared_test_pod):
         """Test error handling for invalid schedule formats."""
-        alias = "invalid-schedule-test"
+        alias = "test4"
         pod_id = shared_test_pod["pod_id"]
 
         # Add pod to alias system
