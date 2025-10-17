@@ -16,6 +16,7 @@ from rp.cli.utils import (
     display_pods_table,
     display_schedule_table,
     handle_cli_error,
+    parse_config_flags,
     parse_gpu_spec,
     parse_storage_spec,
     run_setup_scripts,
@@ -79,13 +80,14 @@ def _auto_clean() -> None:
         pass
 
 
-def create_command(  # noqa: PLR0915, PLR0912  # Function complexity acceptable for main command
+def create_command(  # noqa: PLR0915  # Function complexity acceptable for main command
     alias: str | None = None,
     gpu: str | None = None,
     storage: str | None = None,
     container_disk: str | None = None,
     template: str | None = None,
     image: str | None = None,
+    config: list[str] | None = None,
     force: bool = False,
     dry_run: bool = False,
 ) -> None:
@@ -94,14 +96,9 @@ def create_command(  # noqa: PLR0915, PLR0912  # Function complexity acceptable 
         pod_manager = get_pod_manager()
 
         # Validate arguments
-        if template and (gpu or storage or container_disk):
-            raise ValueError(
-                "Cannot specify --template with individual parameters (--gpu, --storage, --container-disk)"
-            )
-
         if not template and not (alias and gpu and storage):
             raise ValueError(
-                "Must specify either --template or all of (alias, --gpu, --storage)"
+                "Must specify either a template (as first argument) or all of (--alias, --gpu, --storage)"
             )
 
         if template:
@@ -208,6 +205,14 @@ def create_command(  # noqa: PLR0915, PLR0912  # Function complexity acceptable 
         assert final_alias is not None
 
         console.print(f"✅ Saved alias '[bold]{final_alias}[/bold]' -> {pod.id}")
+
+        # Apply config values if provided via --config flag
+        if config:
+            pod_config = parse_config_flags(config)
+            for key, value in pod_config.model_dump().items():
+                if value is not None:
+                    pod_manager.set_pod_config(final_alias, key, value)
+                    console.print(f"⚙️  Set config '{key}' = '{value}'")
 
         # Configure SSH
         if pod.ip_address and pod.ssh_port:
@@ -499,6 +504,14 @@ def show_command(alias: str) -> None:
             )
             console.print(f"[bold]Image:[/bold]     {image_display}")
 
+        # Configuration
+        config_values = pod_manager.get_pod_config(alias)
+        if any(v is not None for v in config_values.values()):
+            console.print("\n[bold cyan]Configuration:[/bold cyan]")
+            for key, value in config_values.items():
+                if value is not None:
+                    console.print(f"  {key}: [bold]{value}[/bold]")
+
         # Scheduled tasks
         if scheduled_tasks:
             console.print("\n[bold yellow]Scheduled Tasks:[/bold yellow]")
@@ -616,6 +629,7 @@ def template_create_command(
     storage: str,
     container_disk: str | None = None,
     image: str | None = None,
+    config: list[str] | None = None,
     force: bool = False,
 ) -> None:
     """Create a new pod template."""
@@ -635,6 +649,11 @@ def template_create_command(
         if image is not None:
             template_kwargs["image"] = image
 
+        # Parse config flags if provided
+        if config:
+            pod_config = parse_config_flags(config)
+            template_kwargs["config"] = pod_config
+
         template = PodTemplate(**template_kwargs)  # type: ignore[arg-type]
 
         pod_manager = get_pod_manager()
@@ -648,6 +667,9 @@ def template_create_command(
             console.print(f"   Container disk: {container_disk}")
         if image is not None:
             console.print(f"   Image: {image}")
+        if config:
+            for config_item in config:
+                console.print(f"   Config: {config_item}")
 
     except Exception as e:
         handle_cli_error(e)
@@ -767,68 +789,99 @@ def shell_command(alias: str) -> None:
         handle_cli_error(e)
 
 
-def config_set_command(alias: str, key: str, value: str | None) -> None:
-    """Set a configuration value for a pod."""
+def config_command(alias: str, args: list[str]) -> None:
+    """Get or set configuration values for a pod.
+
+    Usage:
+        rp config <alias> <key>              # Get single value
+        rp config <alias> key=value          # Set single value
+        rp config <alias> key1=val1 key2=val2  # Set multiple values
+    """
     try:
         pod_manager = get_pod_manager()
-
-        # Validate key
         valid_keys = ["path"]
-        if key not in valid_keys:
+
+        if not args:
+            # No args - show error
             console.print(
-                f"❌ Invalid config key: {key}. Valid keys: {', '.join(valid_keys)}",
+                "❌ Usage: rp config <alias> <key> OR rp config <alias> key=value [key2=value2 ...]",
                 style="red",
             )
             raise typer.Exit(1) from None
 
-        pod_manager.set_pod_config(alias, key, value)
+        # Check if any arg contains '=' (set mode) or all are plain keys (get mode)
+        has_equals = any("=" in arg for arg in args)
 
-        if value is None:
-            console.print(f"✅ Cleared '{key}' for '[bold]{alias}[/bold]'")
+        if has_equals:
+            # Set mode: parse key=value pairs
+            if any("=" not in arg for arg in args):
+                console.print(
+                    "❌ Cannot mix key=value and plain key arguments",
+                    style="red",
+                )
+                raise typer.Exit(1) from None
+
+            # Parse and validate all pairs first
+            pairs = []
+            for arg in args:
+                if "=" not in arg:
+                    continue
+                key, _, value = arg.partition("=")
+                key = key.strip()
+                value = value.strip()
+
+                if key not in valid_keys:
+                    console.print(
+                        f"❌ Invalid config key: {key}. Valid keys: {', '.join(valid_keys)}",
+                        style="red",
+                    )
+                    raise typer.Exit(1) from None
+
+                pairs.append((key, value if value else None))
+
+            # Set all values and show feedback
+            for key, value in pairs:
+                old_value = pod_manager.get_pod_config_value(alias, key)
+                pod_manager.set_pod_config(alias, key, value)
+
+                if value is None:
+                    console.print(f"✅ Cleared '{key}' for '[bold]{alias}[/bold]'")
+                elif old_value is None:
+                    console.print(
+                        f"✅ Set '{key}' = '{value}' for '[bold]{alias}[/bold]' (new)"
+                    )
+                elif old_value != value:
+                    console.print(
+                        f"✅ Set '{key}' = '{value}' for '[bold]{alias}[/bold]' (was '{old_value}')"
+                    )
+                else:
+                    console.print(
+                        f"ℹ️  '{key}' already set to '{value}' for '[bold]{alias}[/bold]'"
+                    )
         else:
-            console.print(f"✅ Set '{key}' = '{value}' for '[bold]{alias}[/bold]'")
+            # Get mode: retrieve and display values
+            if len(args) > 1:
+                console.print(
+                    "❌ To get multiple values, use: rp show <alias>",
+                    style="red",
+                )
+                raise typer.Exit(1) from None
 
-    except Exception as e:
-        handle_cli_error(e)
+            key = args[0].strip()
 
+            if key not in valid_keys:
+                console.print(
+                    f"❌ Invalid config key: {key}. Valid keys: {', '.join(valid_keys)}",
+                    style="red",
+                )
+                raise typer.Exit(1) from None
 
-def config_get_command(alias: str, key: str) -> None:
-    """Get a configuration value for a pod."""
-    try:
-        pod_manager = get_pod_manager()
+            value = pod_manager.get_pod_config_value(alias, key)
 
-        # Validate key
-        valid_keys = ["path"]
-        if key not in valid_keys:
-            console.print(
-                f"❌ Invalid config key: {key}. Valid keys: {', '.join(valid_keys)}",
-                style="red",
-            )
-            raise typer.Exit(1) from None
-
-        value = pod_manager.get_pod_config_value(alias, key)
-
-        if value is None:
-            console.print(f"{key}: [dim](not set)[/dim]")
-        else:
-            console.print(f"{key}: [bold]{value}[/bold]")
-
-    except Exception as e:
-        handle_cli_error(e)
-
-
-def config_list_command(alias: str) -> None:
-    """List all configuration values for a pod."""
-    try:
-        pod_manager = get_pod_manager()
-        config_values = pod_manager.get_pod_config(alias)
-
-        console.print(f"Configuration for '[bold]{alias}[/bold]':")
-        for key, value in config_values.items():
             if value is None:
-                console.print(f"  {key}: [dim](not set)[/dim]")
+                console.print(f"{key}: [dim](not set)[/dim]")
             else:
-                console.print(f"  {key}: [bold]{value}[/bold]")
+                console.print(f"{key}: [bold]{value}[/bold]")
 
     except Exception as e:
         handle_cli_error(e)

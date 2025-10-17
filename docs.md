@@ -84,47 +84,58 @@ Create a new pod and add it to local configuration.
 
 **Syntax:**
 ```bash
-rp create <alias> --gpu <gpu_spec> --storage <size> [options]
-rp create --template <template_id>
-rp create <alias> --template <template_id>
+# Create from template
+rp create <template_id>
+rp create <template_id> --alias <alias>
+
+# Create with explicit parameters
+rp create --alias <alias> --gpu <gpu_spec> --storage <size> [options]
 ```
 
 **Arguments:**
-- `<alias>`: SSH host alias (e.g., `my-pod-1`) - optional when using `--template`
+- `<template_id>`: Template identifier to use (e.g., `ml-training`) - optional if using `--alias` mode
 
 **Options:**
-- `--gpu <spec>`: GPU specification (e.g., `2xA100`, `1xH100`, `4xRTX4090`)
-- `--storage <size>`: Volume size (e.g., `500GB`, `1TB`)
-- `--container-disk <size>`: Container disk size (default: `20GB`)
-- `--template <id>`: Use a pod template instead of specifying options
-- `--image <image>`: Docker image (default: `runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04`)
+- `--alias <alias>`: SSH host alias (e.g., `my-pod-1`) - required when not using template, optional to override template alias
+- `--gpu <spec>`: GPU specification (e.g., `2xA100`, `1xH100`, `4xRTX4090`) - can override template
+- `--storage <size>`: Volume size (e.g., `500GB`, `1TB`) - can override template
+- `--container-disk <size>`: Container disk size (default: `20GB`) - can override template
+- `--image <image>`: Docker image (default: `runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04`) - can override template
+- `--config <key=value>`: Set pod configuration (e.g., `path=/workspace/project`). Can be specified multiple times
 - `--force, -f`: Overwrite existing alias if it exists
 - `--dry-run`: Show what would be created without creating
 
 **Examples:**
 ```bash
 # Create with explicit parameters
-rp create my-pod --gpu 2xA100 --storage 500GB
+rp create --alias my-pod --gpu 2xA100 --storage 500GB
 
 # Create with custom image
-rp create my-pod --gpu 1xH100 --storage 1TB --image nvidia/cuda:12.0.0-devel-ubuntu22.04
+rp create --alias my-pod --gpu 1xH100 --storage 1TB --image nvidia/cuda:12.0.0-devel-ubuntu22.04
 
 # Create from template (auto-numbered alias)
-rp create --template ml-training
+rp create ml-training
 
 # Create from template with custom alias (overrides template naming)
-rp create custom-pod --template ml-training
+rp create ml-training --alias custom-pod
+
+# Create from template and override GPU
+rp create ml-training --gpu 8xH100
+
+# Create with config
+rp create --alias my-pod --gpu 2xA100 --storage 500GB --config path=/workspace/myproject
 
 # Dry run to preview
-rp create my-pod --gpu 2xA100 --storage 500GB --dry-run
+rp create --alias my-pod --gpu 2xA100 --storage 500GB --dry-run
 ```
 
 **Behavior:**
 1. Creates the pod via RunPod API
 2. Adds alias to local configuration (`~/.config/rp/pods.json`)
-3. Waits for pod to be running and SSH to be available
-4. Updates SSH config (`~/.ssh/config`)
-5. Runs setup scripts (`setup_local.sh` and `setup_remote.sh`)
+3. Applies any config values specified via `--config` flags
+4. Waits for pod to be running and SSH to be available
+5. Updates SSH config (`~/.ssh/config`)
+6. Runs setup scripts (`setup_local.sh` and `setup_remote.sh`)
 
 ---
 
@@ -342,6 +353,7 @@ rp show my-pod
 - Cost per hour
 - IP address and SSH port (if running)
 - Docker image
+- Configuration values (if any)
 - Scheduled tasks (if any)
 
 **Example output:**
@@ -356,6 +368,9 @@ Container:  20GB
 Cost:      $3.200/hour
 IP:        123.45.67.89:12345
 Image:     runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn...
+
+Configuration:
+  path: /workspace/myproject
 
 Scheduled Tasks:
   • stop at 2025-01-15 22:00 (id=550e8400)
@@ -399,7 +414,7 @@ rp cursor <alias> [path]
 - `[path]`: Remote path to open (optional)
 
 **Default path:**
-- Uses configured default path if set (see `rp config set`)
+- Uses configured default path if set (see `rp config`)
 - Falls back to `/workspace` if no path configured
 
 **Example:**
@@ -442,76 +457,51 @@ rp shell my-pod
 
 ### Pod Configuration
 
-#### `rp config set`
+#### `rp config`
 
-Set a configuration value for a pod.
+Get or set configuration values for a pod.
 
 **Syntax:**
 ```bash
-rp config set <alias> <key> [value]
+# Get a value
+rp config <alias> <key>
+
+# Set a single value
+rp config <alias> key=value
+
+# Set multiple values
+rp config <alias> key1=value1 key2=value2
+
+# Clear a value
+rp config <alias> key=
 ```
 
 **Arguments:**
 - `<alias>`: Pod alias
-- `<key>`: Configuration key (currently only `path` is supported)
-- `[value]`: Value to set (omit to clear)
+- `<key>`: Configuration key (for get mode)
+- `key=value`: Configuration key-value pair (for set mode)
 
 **Valid keys:**
 - `path`: Default working directory path
 
 **Examples:**
 ```bash
+# Get default path
+rp config my-pod path
+
 # Set default path
-rp config set my-pod path /workspace/myproject
+rp config my-pod path=/workspace/myproject
+
+# Set multiple values
+rp config my-pod path=/workspace/x path2=/workspace/y
 
 # Clear default path
-rp config set my-pod path
+rp config my-pod path=
 ```
 
----
-
-#### `rp config get`
-
-Get a configuration value for a pod.
-
-**Syntax:**
-```bash
-rp config get <alias> <key>
-```
-
-**Arguments:**
-- `<alias>`: Pod alias
-- `<key>`: Configuration key
-
-**Example:**
-```bash
-rp config get my-pod path
-```
-
----
-
-#### `rp config list`
-
-List all configuration values for a pod.
-
-**Syntax:**
-```bash
-rp config list <alias>
-```
-
-**Arguments:**
-- `<alias>`: Pod alias
-
-**Example:**
-```bash
-rp config list my-pod
-```
-
-**Output:**
-```
-Configuration for 'my-pod':
-  path: /workspace/myproject
-```
+**Behavior:**
+- When setting values, shows whether each config is new or being overridden (with previous value)
+- To list all configuration values, use `rp show <alias>` which displays config along with other pod details
 
 ---
 
@@ -537,14 +527,20 @@ rp template create <identifier> <alias_template> --gpu <spec> --storage <size> [
 - `--storage <size>`: Storage size (required)
 - `--container-disk <size>`: Container disk size (optional)
 - `--image <image>`: Docker image (optional)
+- `--config <key=value>`: Default pod configuration (e.g., `path=/workspace/project`). Can be specified multiple times
 - `--force, -f`: Overwrite existing template
 
-**Example:**
+**Examples:**
 ```bash
+# Create basic template
 rp template create ml-training "ml-training-{i}" --gpu 2xA100 --storage 1TB
+
+# Create template with default path config
+rp template create ml-training "ml-training-{i}" --gpu 2xA100 --storage 1TB \
+  --config path=/workspace/ml
 ```
 
-**Note:** The `{i}` placeholder is replaced with the next available number when creating a pod from the template.
+**Note:** The `{i}` placeholder is replaced with the next available number when creating a pod from the template. Config values specified in the template are automatically applied to all pods created from that template.
 
 ---
 
@@ -953,7 +949,7 @@ scp ~/.ssh/my_key $POD_HOST:/root/.ssh/
 **Direct creation:**
 ```bash
 # Create a pod
-rp create my-pod --gpu 2xA100 --storage 500GB
+rp create --alias my-pod --gpu 2xA100 --storage 500GB
 
 # Connect with Cursor
 rp cursor my-pod
@@ -967,15 +963,16 @@ rp stop my-pod
 
 **Template-based workflow:**
 ```bash
-# Create a template
-rp template create training "train-{i}" --gpu 2xA100 --storage 1TB
+# Create a template with default config
+rp template create training "train-{i}" --gpu 2xA100 --storage 1TB \
+  --config path=/workspace/training
 
-# Create pods from template (auto-numbered)
-rp create --template training  # Creates train-1
-rp create --template training  # Creates train-2
+# Create pods from template (auto-numbered, inherits config)
+rp create training  # Creates train-1 with path=/workspace/training
+rp create training  # Creates train-2 with path=/workspace/training
 
 # Or create with custom alias
-rp create my-special-pod --template training  # Uses template config, custom name
+rp create training --alias my-special-pod  # Uses template config, custom name
 
 # List all pods
 rp list
@@ -987,7 +984,7 @@ rp list
 
 ```bash
 # Create and work on pod
-rp create my-pod --gpu 2xH100 --storage 1TB
+rp create --alias my-pod --gpu 2xH100 --storage 1TB
 
 # Schedule it to stop in 8 hours
 rp stop my-pod --in "8h"
@@ -1014,7 +1011,7 @@ rp list
 rp shell existing-pod
 
 # Set default path
-rp config set existing-pod path /workspace/myproject
+rp config existing-pod path=/workspace/myproject
 
 # Now cursor opens at that path by default
 rp cursor existing-pod
@@ -1044,7 +1041,7 @@ rp destroy my-pod
 You can specify custom Docker images when creating pods:
 
 ```bash
-rp create my-pod --gpu 2xA100 --storage 500GB \
+rp create --alias my-pod --gpu 2xA100 --storage 500GB \
   --image nvidia/cuda:12.0.0-devel-ubuntu22.04
 ```
 
@@ -1066,22 +1063,45 @@ RunPod pods have both a persistent volume and a container disk. By default, the 
 To specify a larger container disk:
 
 ```bash
-rp create my-pod --gpu 2xA100 --storage 500GB --container-disk 50GB
+rp create --alias my-pod --gpu 2xA100 --storage 500GB --container-disk 50GB
 ```
 
 ---
 
 ### Per-Pod Configuration
 
-Configure default paths for each pod to streamline your workflow:
+Configure default paths for each pod to streamline your workflow. There are three ways to set config values:
 
+**1. During pod creation:**
 ```bash
-# Set default path
-rp config set my-pod path /workspace/myproject
+rp create --alias my-pod --gpu 2xA100 --storage 500GB --config path=/workspace/myproject
+```
 
-# Now these commands use the default path
+**2. In templates:**
+```bash
+# Create template with default config
+rp template create ml "ml-{i}" --gpu 2xA100 --storage 1TB --config path=/workspace/ml
+
+# All pods from this template inherit the config
+rp create ml  # Gets path=/workspace/ml automatically
+```
+
+**3. After creation with `rp config`:**
+```bash
+rp config my-pod path=/workspace/myproject
+```
+
+**Usage:**
+```bash
+# Now these commands use the configured default path
 rp cursor my-pod      # Opens at /workspace/myproject
 rp shell my-pod       # CDs to /workspace/myproject
+```
+
+**Overriding template config:**
+```bash
+# Override template default when creating
+rp create ml --config path=/workspace/custom
 ```
 
 ---
@@ -1118,7 +1138,7 @@ rp track my-pod new-pod-id --force
 rp template create training "train-{i}" --gpu 4xA100 --storage 2TB --force
 
 # Overwrite existing alias when creating
-rp create my-pod --gpu 2xA100 --storage 500GB --force
+rp create --alias my-pod --gpu 2xA100 --storage 500GB --force
 ```
 
 ---
@@ -1129,7 +1149,7 @@ Preview operations without executing them:
 
 ```bash
 # See what would be created
-rp create my-pod --gpu 2xA100 --storage 500GB --dry-run
+rp create --alias my-pod --gpu 2xA100 --storage 500GB --dry-run
 
 # See what would be scheduled
 rp stop my-pod --in "2h" --dry-run
@@ -1210,19 +1230,19 @@ After parsing, the model identifier is resolved to a specific RunPod GPU type ID
 
 ```bash
 # Simple specifications
-rp create my-pod --gpu H100 --storage 500GB           # 1x H100 (highest VRAM)
-rp create my-pod --gpu 2xA100 --storage 1TB           # 2x A100 (highest VRAM)
-rp create my-pod --gpu RTX4090 --storage 500GB        # 1x RTX 4090
+rp create --alias my-pod --gpu H100 --storage 500GB           # 1x H100 (highest VRAM)
+rp create --alias my-pod --gpu 2xA100 --storage 1TB           # 2x A100 (highest VRAM)
+rp create --alias my-pod --gpu RTX4090 --storage 500GB        # 1x RTX 4090
 
 # Specific variants
-rp create my-pod --gpu 4xH100-PCIE --storage 2TB      # 4x H100 PCIe
-rp create my-pod --gpu 2xH100-SXM --storage 1TB       # 2x H100 SXM
-rp create my-pod --gpu H100-NVL --storage 500GB       # 1x H100 NVL (94GB)
-rp create my-pod --gpu 8xA100-SXM --storage 4TB       # 8x A100 SXM
+rp create --alias my-pod --gpu 4xH100-PCIE --storage 2TB      # 4x H100 PCIe
+rp create --alias my-pod --gpu 2xH100-SXM --storage 1TB       # 2x H100 SXM
+rp create --alias my-pod --gpu H100-NVL --storage 500GB       # 1x H100 NVL (94GB)
+rp create --alias my-pod --gpu 8xA100-SXM --storage 4TB       # 8x A100 SXM
 
 # Case insensitive
-rp create my-pod --gpu 2xa100 --storage 1TB           # Same as 2xA100
-rp create my-pod --gpu h100-pcie --storage 500GB      # Same as H100-PCIE
+rp create --alias my-pod --gpu 2xa100 --storage 1TB           # Same as 2xA100
+rp create --alias my-pod --gpu h100-pcie --storage 500GB      # Same as H100-PCIE
 ```
 
 #### Troubleshooting GPU Specs
@@ -1278,7 +1298,7 @@ The algorithm finds the lowest `i ≥ 1` where the formatted alias doesn't exist
 You can also override the template's alias format by providing an explicit alias:
 
 ```bash
-rp create custom-name --template training  # Uses template's GPU/storage, custom alias
+rp create training --alias custom-name  # Uses template's GPU/storage, custom alias
 ```
 
 This creates a pod with the template's configuration (GPU, storage, image, etc.) but with your specified alias instead of the auto-numbered one.
@@ -1441,13 +1461,13 @@ rp template create foo "foo-{i}" --gpu 2xA100 --storage 1TB
 ### Example: Development Workflow
 
 ```bash
-# One-time setup
-rp template create dev "dev-{i}" --gpu 1xRTX4090 --storage 500GB
-rp config set dev-1 path /workspace/myproject
+# One-time setup with config in template
+rp template create dev "dev-{i}" --gpu 1xRTX4090 --storage 500GB \
+  --config path=/workspace/myproject
 
 # Daily workflow
-rp create --template dev           # Create dev-1
-rp cursor dev-1                     # Open Cursor
+rp create dev                       # Create dev-1 with path already configured
+rp cursor dev-1                     # Opens at /workspace/myproject automatically
 # ... work on project ...
 rp stop dev-1 --in "8h"    # Auto-stop in 8 hours
 
@@ -1461,18 +1481,19 @@ rp cursor dev-1                     # Continue where you left off
 ### Example: Training Jobs
 
 ```bash
-# Template for training runs
-rp template create train "train-{i}" --gpu 4xA100 --storage 2TB
+# Template for training runs with default workspace
+rp template create train "train-{i}" --gpu 4xA100 --storage 2TB \
+  --config path=/workspace/experiments
 
 # Start multiple training runs
-rp create --template train  # train-1
-rp create --template train  # train-2
+rp create train  # train-1 (opens at /workspace/experiments)
+rp create train  # train-2 (opens at /workspace/experiments)
 
 # Schedule automatic shutdown
 rp stop train-1 --in "24h"
 rp stop train-2 --in "24h"
 
-# Monitor progress
+# Monitor progress (automatically CDs to /workspace/experiments)
 rp shell train-1
 ```
 
@@ -1534,9 +1555,7 @@ scp ~/.env.production $POD_HOST:/workspace/.env
 | `rp clean` | Remove invalid aliases and SSH config |
 | `rp cursor` | Open Cursor editor connected to pod |
 | `rp shell` | Open SSH shell to pod |
-| `rp config set` | Set pod configuration value |
-| `rp config get` | Get pod configuration value |
-| `rp config list` | List all pod configuration |
+| `rp config` | Get or set pod configuration values |
 | `rp template create` | Create a pod template |
 | `rp template list` | List all templates |
 | `rp template delete` | Delete a template |

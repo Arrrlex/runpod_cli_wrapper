@@ -20,7 +20,7 @@ class TestPodLifecycle:
 
         # 1. Create a pod
         result = cli_runner(
-            ["create", alias, "--gpu", "1xRTX A4000", "--storage", "10GB"]
+            ["create", "--alias", alias, "--gpu", "1xRTX A4000", "--storage", "10GB"]
         )
 
         assert result.returncode == 0, f"Create failed: {result.stderr}"

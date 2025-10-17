@@ -49,8 +49,11 @@ select = [
 ]
 ignore = [
     "E501",   # line too long, handled by formatter
+    "B008",   # do not perform function calls in argument defaults (typer pattern)
     "PLR0913", # too many arguments
+    "PLR0912", # too many branches
     "PLR2004", # magic value used in comparison
+    "RUF001",  # ambiguous unicode characters (used intentionally in output)
 ]
 
 [tool.ruff.format]

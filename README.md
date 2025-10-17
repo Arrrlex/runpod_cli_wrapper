@@ -51,10 +51,10 @@ This will show you all available commands and options for managing your pods.
 
 The workflow is roughly:
 
-1. **Create pods directly**: `rp create alex-ast-2 --gpu 2xH100 --storage 500GB` creates a pod and adds it to the list that `rp` manages
+1. **Create pods directly**: `rp create --alias alex-ast-2 --gpu 2xH100 --storage 500GB` creates a pod and adds it to the list that `rp` manages
 2. **Or use templates for repeated deployments**:
    - Create a template: `rp template create my-template "my-pod-{i}" --gpu 2xH100 --storage 500GB`
-   - Use template: `rp create --template my-template` (automatically creates `my-pod-1`, `my-pod-2`, etc.)
+   - Use template: `rp create my-template` (automatically creates `my-pod-1`, `my-pod-2`, etc.)
 3. **Track existing pods**: For any pods created using the RunPod website, `rp track <alias> <id>` adds it to `rp`'s local config
 4. **List pods**: `rp list` shows you all rp's managed pods and their status (running, stopped, or invalid if they don't exist)
 5. **View pod details**: `rp show <alias>` displays comprehensive information including GPU, storage, cost, and scheduled tasks
@@ -72,14 +72,18 @@ The first time you run a `rp` command, it will ask you to provide your runpod AP
 Templates let you save common pod configurations and reuse them with automatic alias numbering:
 
 ```bash
-# Create a template
-rp template create ml-training "ml-training-{i}" --gpu 2xA100 --storage 1TB
+# Create a template with default config
+rp template create ml-training "ml-training-{i}" --gpu 2xA100 --storage 1TB \
+  --config path=/workspace/ml
 
-# Use the template (creates ml-training-1, ml-training-2, etc.)
-rp create --template ml-training
+# Use the template (creates ml-training-1, ml-training-2, etc. with config)
+rp create ml-training
 
 # Or override the alias when using a template
-rp create custom-name --template ml-training
+rp create ml-training --alias custom-name
+
+# Override template config when creating
+rp create ml-training --config path=/workspace/custom
 
 # List all templates
 rp template list
@@ -88,24 +92,35 @@ rp template list
 rp template delete ml-training
 ```
 
-Templates automatically find the lowest available number for the `{i}` placeholder, so if `ml-training-1` exists, the next pod will be `ml-training-2`. You can also provide an explicit alias to override the template's naming scheme.
+Templates automatically find the lowest available number for the `{i}` placeholder, so if `ml-training-1` exists, the next pod will be `ml-training-2`. You can also provide an explicit alias to override the template's naming scheme. Config values in templates are automatically applied to all pods created from that template.
 
 ### Pod Configuration
 
-You can configure per-pod settings like default working directory paths:
+You can configure per-pod settings like default working directory paths in three ways:
 
+**1. During pod creation:**
+```bash
+rp create --alias my-pod --gpu 2xA100 --storage 500GB --config path=/workspace/myproject
+```
+
+**2. In templates (applied to all pods from that template):**
+```bash
+rp template create ml "ml-{i}" --gpu 2xA100 --storage 1TB --config path=/workspace/ml
+```
+
+**3. After creation using `rp config`:**
 ```bash
 # Set a default path for a pod (used by both cursor and shell)
-rp config set alex-ast-1 path /workspace/ast-goodfire
+rp config alex-ast-1 path=/workspace/ast-goodfire
 
 # Get a specific config value
-rp config get alex-ast-1 path
+rp config alex-ast-1 path
 
-# List all configuration for a pod
-rp config list alex-ast-1
+# Set multiple values at once
+rp config alex-ast-1 path=/workspace/x path2=/workspace/y
 
 # Clear a config value
-rp config set alex-ast-1 path
+rp config alex-ast-1 path=
 ```
 
 When you run `rp cursor alex-ast-1` or `rp shell alex-ast-1` without specifying a path, they will use the configured default path. The cursor command defaults to `/workspace` if no path is configured, and the shell command will cd into the configured path automatically.

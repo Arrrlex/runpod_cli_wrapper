@@ -12,9 +12,7 @@ from typer.core import TyperGroup
 
 from rp.cli.commands import (
     clean_command,
-    config_get_command,
-    config_list_command,
-    config_set_command,
+    config_command,
     create_command,
     cursor_command,
     destroy_command,
@@ -56,14 +54,14 @@ schedule_app = typer.Typer(help="Manage scheduled tasks")
 # Template sub-application
 template_app = typer.Typer(help="Manage pod templates")
 
-# Config sub-application
-config_app = typer.Typer(help="Manage pod configuration")
-
 
 @app.command()
 def create(
-    alias: str = typer.Argument(
-        None, help="SSH host alias to assign (e.g., alexs-machine)"
+    template: str = typer.Argument(
+        None, help="Template identifier to use (e.g., 'training-template')"
+    ),
+    alias: str = typer.Option(
+        None, "--alias", help="SSH host alias to assign (e.g., alexs-machine)"
     ),
     gpu: str = typer.Option(None, "--gpu", help="GPU spec like '2xA100'"),
     storage: str = typer.Option(
@@ -72,13 +70,15 @@ def create(
     container_disk: str = typer.Option(
         None, "--container-disk", help="Container disk size like '20GB' (default: 20GB)"
     ),
-    template: str = typer.Option(
-        None, "--template", help="Use a pod template (e.g., 'alex-ast')"
-    ),
     image: str = typer.Option(
         None,
         "--image",
         help="Docker image to use (default: runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04)",
+    ),
+    config: list[str] = typer.Option(
+        None,
+        "--config",
+        help="Config key=value pairs (e.g., 'path=/workspace/project')",
     ),
     force: bool = typer.Option(
         False, "--force", "-f", help="Overwrite alias if it exists"
@@ -87,8 +87,10 @@ def create(
         False, "--dry-run", help="Show actions without creating"
     ),
 ):
-    """Create a new RunPod using PyTorch 2.8 image, add alias, wait for SSH, and run setup scripts."""
-    create_command(alias, gpu, storage, container_disk, template, image, force, dry_run)
+    """Create a new RunPod instance, add alias, wait for SSH, and run setup scripts."""
+    create_command(
+        alias, gpu, storage, container_disk, template, image, config, force, dry_run
+    )
 
 
 @app.command()
@@ -214,13 +216,18 @@ def template_create(
         "--image",
         help="Docker image to use (default: runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04)",
     ),
+    config: list[str] = typer.Option(
+        None,
+        "--config",
+        help="Config key=value pairs (e.g., 'path=/workspace/project')",
+    ),
     force: bool = typer.Option(
         False, "--force", "-f", help="Overwrite template if it exists"
     ),
 ):
     """Create a new pod template."""
     template_create_command(
-        identifier, alias_template, gpu, storage, container_disk, image, force
+        identifier, alias_template, gpu, storage, container_disk, image, config, force
     )
 
 
@@ -266,31 +273,21 @@ def shell(
     shell_command(alias)
 
 
-@config_app.command("set")
-def config_set(
+@app.command()
+def config(
     alias: str = typer.Argument(..., help="Pod alias to configure"),
-    key: str = typer.Argument(..., help="Configuration key (e.g., 'path')"),
-    value: str = typer.Argument(None, help="Value to set (omit to clear)"),
+    args: list[str] = typer.Argument(
+        None, help="Either 'key' to get value, or 'key=value' pairs to set"
+    ),
 ):
-    """Set a configuration value for a pod."""
-    config_set_command(alias, key, value)
+    """Get or set configuration for a pod.
 
-
-@config_app.command("get")
-def config_get(
-    alias: str = typer.Argument(..., help="Pod alias to query"),
-    key: str = typer.Argument(..., help="Configuration key to get"),
-):
-    """Get a configuration value for a pod."""
-    config_get_command(alias, key)
-
-
-@config_app.command("list")
-def config_list(
-    alias: str = typer.Argument(..., help="Pod alias to list configuration for"),
-):
-    """List all configuration values for a pod."""
-    config_list_command(alias)
+    Examples:
+      rp config my-pod path                # Get value
+      rp config my-pod path=/workspace/x   # Set value
+      rp config my-pod path=/x path2=/y    # Set multiple
+    """
+    config_command(alias, args or [])
 
 
 def main():
@@ -304,7 +301,6 @@ def main():
     # Mount sub-apps
     app.add_typer(schedule_app, name="schedule")
     app.add_typer(template_app, name="template")
-    app.add_typer(config_app, name="config")
     app()
 
 

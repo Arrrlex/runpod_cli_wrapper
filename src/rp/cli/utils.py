@@ -18,7 +18,7 @@ from rich.table import Table
 from rich.text import Text
 
 from rp.config import API_KEY_FILE, LOCAL_SETUP_FILE, REMOTE_SETUP_FILE
-from rp.core.models import GPUSpec, Pod, PodStatus, ScheduleTask
+from rp.core.models import GPUSpec, Pod, PodConfig, PodStatus, ScheduleTask
 from rp.utils.api_client import RunPodAPIClient
 from rp.utils.errors import RunPodCLIError
 
@@ -136,6 +136,37 @@ def parse_storage_spec(storage_string: str) -> int:
         raise typer.BadParameter("--storage must be at least 10GB")
 
     return gb
+
+
+def parse_config_flags(config_flags: list[str] | None) -> PodConfig:
+    """Parse --config flags into a PodConfig object.
+
+    Each flag should be in the format 'key=value', e.g., 'path=/workspace/project'.
+    Supported keys: path
+    """
+    config = PodConfig()
+
+    if not config_flags:
+        return config
+
+    for flag in config_flags:
+        if "=" not in flag:
+            raise typer.BadParameter(
+                f"Invalid --config format: '{flag}'. Expected 'key=value' (e.g., 'path=/workspace/project')"
+            )
+
+        key, value = flag.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+
+        if key == "path":
+            config.path = value if value else None
+        else:
+            raise typer.BadParameter(
+                f"Unknown config key: '{key}'. Supported keys: path"
+            )
+
+    return config
 
 
 def display_pods_table(

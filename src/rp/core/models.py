@@ -213,6 +213,12 @@ class PodCreateRequest(BaseModel):
     ports: str = Field(default="22/tcp,8888/http", description="Port configuration")
 
 
+class PodConfig(BaseModel):
+    """Per-pod configuration settings."""
+
+    path: str | None = Field(None, description="Default working directory path")
+
+
 class PodTemplate(BaseModel):
     """Template for creating pods with predefined configurations."""
 
@@ -230,6 +236,9 @@ class PodTemplate(BaseModel):
     image: str | None = Field(
         default=None, description="Docker image to use (None uses default)"
     )
+    config: PodConfig = Field(
+        default_factory=PodConfig, description="Default pod configuration"
+    )
 
     @field_validator("alias_template")
     @classmethod
@@ -237,12 +246,6 @@ class PodTemplate(BaseModel):
         if "{i}" not in v:
             raise ValueError("Alias template must contain '{i}' placeholder")
         return v
-
-
-class PodConfig(BaseModel):
-    """Per-pod configuration settings."""
-
-    path: str | None = Field(None, description="Default working directory path")
 
 
 class PodMetadata(BaseModel):

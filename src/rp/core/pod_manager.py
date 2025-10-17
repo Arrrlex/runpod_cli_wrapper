@@ -301,7 +301,15 @@ class PodManager:
 
         request = PodCreateRequest(**request_kwargs)  # type: ignore[arg-type]
 
-        return self.create_pod(request)
+        # Create the pod
+        pod = self.create_pod(request)
+
+        # Apply template config to the pod
+        for key, value in template.config.model_dump().items():
+            if value is not None:
+                self.set_pod_config(alias, key, value)
+
+        return pod
 
     def set_pod_config(self, alias: str, key: str, value: str | None) -> None:
         """Set a configuration value for a pod."""
