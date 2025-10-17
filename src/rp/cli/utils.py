@@ -169,10 +169,8 @@ def parse_config_flags(config_flags: list[str] | None) -> PodConfig:
     return config
 
 
-def display_pods_table(
-    pods: list[Pod], configs: dict[str, dict[str, str | None]] | None = None
-) -> None:
-    """Display a table of pods with optional config info."""
+def display_pods_table(pods: list[Pod]) -> None:
+    """Display a table of pods."""
     if not pods:
         console.print(
             "[yellow]No aliases configured. Add one with: rp add <alias> <pod_id>[/yellow]"
@@ -183,8 +181,6 @@ def display_pods_table(
     table.add_column("Alias", style="green")
     table.add_column("ID", style="magenta")
     table.add_column("Status", style="white")
-    if configs is not None:
-        table.add_column("Path", style="blue")
 
     for pod in pods:
         if pod.status == PodStatus.RUNNING:
@@ -195,15 +191,6 @@ def display_pods_table(
             status_text = Text("invalid", style="bold red")
 
         row = [pod.alias, pod.id, status_text]
-
-        if configs is not None:
-            config = configs.get(pod.alias, {})
-            path = config.get("path")
-            if path:
-                row.append(path)
-            else:
-                row.append(Text("—", style="dim"))
-
         table.add_row(*row)
 
     console.print(table)

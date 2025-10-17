@@ -432,17 +432,7 @@ def list_command() -> None:
     try:
         pod_manager = get_pod_manager()
         pods = pod_manager.list_pods()
-
-        # Gather config for each pod
-        configs = {}
-        for pod in pods:
-            try:
-                configs[pod.alias] = pod_manager.get_pod_config(pod.alias)
-            except Exception:
-                # Config might not exist for this pod
-                configs[pod.alias] = {}
-
-        display_pods_table(pods, configs)
+        display_pods_table(pods)
 
     except Exception as e:
         handle_cli_error(e)
