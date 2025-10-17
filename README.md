@@ -53,7 +53,7 @@ The workflow is roughly:
 
 1. **Create pods directly**: `rp create --alias alex-ast-2 --gpu 2xH100 --storage 500GB` creates a pod and adds it to the list that `rp` manages
 2. **Or use templates for repeated deployments**:
-   - Create a template: `rp template create my-template "my-pod-{i}" --gpu 2xH100 --storage 500GB`
+   - Create a template: `rp template create my-template --alias-pattern "my-pod-{i}" --gpu 2xH100 --storage 500GB`
    - Use template: `rp create my-template` (automatically creates `my-pod-1`, `my-pod-2`, etc.)
 3. **Track existing pods**: For any pods created using the RunPod website, `rp track <alias> <id>` adds it to `rp`'s local config
 4. **List pods**: `rp list` shows you all rp's managed pods and their status (running, stopped, or invalid if they don't exist)
@@ -73,7 +73,7 @@ Templates let you save common pod configurations and reuse them with automatic a
 
 ```bash
 # Create a template with default config
-rp template create ml-training "ml-training-{i}" --gpu 2xA100 --storage 1TB \
+rp template create ml-training --alias-pattern "ml-training-{i}" --gpu 2xA100 --storage 1TB \
   --config path=/workspace/ml
 
 # Use the template (creates ml-training-1, ml-training-2, etc. with config)
@@ -105,7 +105,7 @@ rp create --alias my-pod --gpu 2xA100 --storage 500GB --config path=/workspace/m
 
 **2. In templates (applied to all pods from that template):**
 ```bash
-rp template create ml "ml-{i}" --gpu 2xA100 --storage 1TB --config path=/workspace/ml
+rp template create ml --alias-pattern "ml-{i}" --gpu 2xA100 --storage 1TB --config path=/workspace/ml
 ```
 
 **3. After creation using `rp config`:**

@@ -515,14 +515,14 @@ Create a new pod template.
 
 **Syntax:**
 ```bash
-rp template create <identifier> <alias_template> --gpu <spec> --storage <size> [options]
+rp template create <identifier> --alias-pattern <pattern> --gpu <spec> --storage <size> [options]
 ```
 
 **Arguments:**
 - `<identifier>`: Template identifier (e.g., `ml-training`)
-- `<alias_template>`: Alias template with `{i}` placeholder (e.g., `ml-training-{i}`)
 
 **Options:**
+- `--alias-pattern <pattern>`: Alias pattern with `{i}` placeholder (e.g., `ml-training-{i}`) (required)
 - `--gpu <spec>`: GPU specification (required)
 - `--storage <size>`: Storage size (required)
 - `--container-disk <size>`: Container disk size (optional)
@@ -533,10 +533,10 @@ rp template create <identifier> <alias_template> --gpu <spec> --storage <size> [
 **Examples:**
 ```bash
 # Create basic template
-rp template create ml-training "ml-training-{i}" --gpu 2xA100 --storage 1TB
+rp template create ml-training --alias-pattern "ml-training-{i}" --gpu 2xA100 --storage 1TB
 
 # Create template with default path config
-rp template create ml-training "ml-training-{i}" --gpu 2xA100 --storage 1TB \
+rp template create ml-training --alias-pattern "ml-training-{i}" --gpu 2xA100 --storage 1TB \
   --config path=/workspace/ml
 ```
 
@@ -964,7 +964,7 @@ rp stop my-pod
 **Template-based workflow:**
 ```bash
 # Create a template with default config
-rp template create training "train-{i}" --gpu 2xA100 --storage 1TB \
+rp template create training --alias-pattern "train-{i}" --gpu 2xA100 --storage 1TB \
   --config path=/workspace/training
 
 # Create pods from template (auto-numbered, inherits config)
@@ -1048,7 +1048,7 @@ rp create --alias my-pod --gpu 2xA100 --storage 500GB \
 Or in templates:
 
 ```bash
-rp template create custom "custom-{i}" \
+rp template create custom --alias-pattern "custom-{i}" \
   --gpu 2xA100 \
   --storage 500GB \
   --image myregistry/myimage:latest
@@ -1080,7 +1080,7 @@ rp create --alias my-pod --gpu 2xA100 --storage 500GB --config path=/workspace/m
 **2. In templates:**
 ```bash
 # Create template with default config
-rp template create ml "ml-{i}" --gpu 2xA100 --storage 1TB --config path=/workspace/ml
+rp template create ml --alias-pattern "ml-{i}" --gpu 2xA100 --storage 1TB --config path=/workspace/ml
 
 # All pods from this template inherit the config
 rp create ml  # Gets path=/workspace/ml automatically
@@ -1451,7 +1451,7 @@ rp clean
 rp template list
 
 # Create template if it doesn't exist
-rp template create foo "foo-{i}" --gpu 2xA100 --storage 1TB
+rp template create foo --alias-pattern "foo-{i}" --gpu 2xA100 --storage 1TB
 ```
 
 ---
@@ -1462,7 +1462,7 @@ rp template create foo "foo-{i}" --gpu 2xA100 --storage 1TB
 
 ```bash
 # One-time setup with config in template
-rp template create dev "dev-{i}" --gpu 1xRTX4090 --storage 500GB \
+rp template create dev --alias-pattern "dev-{i}" --gpu 1xRTX4090 --storage 500GB \
   --config path=/workspace/myproject
 
 # Daily workflow
@@ -1482,7 +1482,7 @@ rp cursor dev-1                     # Continue where you left off
 
 ```bash
 # Template for training runs with default workspace
-rp template create train "train-{i}" --gpu 4xA100 --storage 2TB \
+rp template create train --alias-pattern "train-{i}" --gpu 4xA100 --storage 2TB \
   --config path=/workspace/experiments
 
 # Start multiple training runs

@@ -201,8 +201,10 @@ def template_create(
     identifier: str = typer.Argument(
         ..., help="Template identifier (e.g., 'alex-ast')"
     ),
-    alias_template: str = typer.Argument(
-        ..., help="Alias template with {i} placeholder (e.g., 'alex-ast-{i}')"
+    alias_pattern: str = typer.Option(
+        ...,
+        "--alias-pattern",
+        help="Alias pattern with {i} placeholder (e.g., 'alex-ast-{i}')",
     ),
     gpu: str = typer.Option(..., "--gpu", help="GPU spec like '2xA100'"),
     storage: str = typer.Option(
@@ -227,7 +229,7 @@ def template_create(
 ):
     """Create a new pod template."""
     template_create_command(
-        identifier, alias_template, gpu, storage, container_disk, image, config, force
+        identifier, alias_pattern, gpu, storage, container_disk, image, config, force
     )
 
 
