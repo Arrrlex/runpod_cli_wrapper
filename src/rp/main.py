@@ -6,6 +6,7 @@ using the refactored service layer architecture.
 """
 
 import contextlib
+import json
 
 import typer
 from typer.core import TyperGroup
@@ -30,7 +31,61 @@ from rp.cli.commands import (
     track_command,
     untrack_command,
 )
+from rp.config import POD_CONFIG_FILE
+from rp.core.models import AppConfig
 from rp.core.scheduler import Scheduler
+
+
+def complete_alias(incomplete: str) -> list[str]:
+    """Provide tab completion for pod aliases."""
+    try:
+        # Load config from disk
+        with POD_CONFIG_FILE.open("r") as f:
+            data = json.load(f)
+            if isinstance(data, dict):
+                if (
+                    "aliases" in data
+                    or "pod_templates" in data
+                    or "pod_metadata" in data
+                ):
+                    config = AppConfig.model_validate(data)
+                else:
+                    config = AppConfig(
+                        aliases={str(k): str(v) for k, v in data.items()}
+                    )
+            else:
+                config = AppConfig()
+
+        aliases = list(config.get_all_aliases().keys())
+        return [alias for alias in aliases if alias.startswith(incomplete)]
+    except Exception:
+        return []
+
+
+def complete_template(incomplete: str) -> list[str]:
+    """Provide tab completion for template identifiers."""
+    try:
+        # Load config from disk
+        with POD_CONFIG_FILE.open("r") as f:
+            data = json.load(f)
+            if isinstance(data, dict):
+                if (
+                    "aliases" in data
+                    or "pod_templates" in data
+                    or "pod_metadata" in data
+                ):
+                    config = AppConfig.model_validate(data)
+                else:
+                    config = AppConfig(
+                        aliases={str(k): str(v) for k, v in data.items()}
+                    )
+            else:
+                config = AppConfig()
+
+        templates = list(config.pod_templates.keys())
+        return [template for template in templates if template.startswith(incomplete)]
+    except Exception:
+        return []
 
 
 class OrderedGroup(TyperGroup):
@@ -58,7 +113,9 @@ template_app = typer.Typer(help="Manage pod templates")
 @app.command()
 def create(
     template: str = typer.Argument(
-        None, help="Template identifier to use (e.g., 'training-template')"
+        None,
+        help="Template identifier to use (e.g., 'training-template')",
+        autocompletion=complete_template,
     ),
     alias: str = typer.Option(
         None, "--alias", help="SSH host alias to assign (e.g., alexs-machine)"
@@ -96,7 +153,9 @@ def create(
 @app.command()
 def start(
     host_alias: str = typer.Argument(
-        ..., help="SSH host alias for the pod (e.g., runpod-1, local-saes-1)"
+        ...,
+        help="SSH host alias for the pod (e.g., runpod-1, local-saes-1)",
+        autocompletion=complete_alias,
     ),
 ):
     """Start and configure a RunPod instance."""
@@ -106,7 +165,9 @@ def start(
 @app.command()
 def stop(
     host_alias: str = typer.Argument(
-        ..., help="SSH host alias for the pod (e.g., runpod-1, local-saes-1)"
+        ...,
+        help="SSH host alias for the pod (e.g., runpod-1, local-saes-1)",
+        autocompletion=complete_alias,
     ),
     at: str | None = typer.Option(
         None,
@@ -131,7 +192,9 @@ def stop(
 @app.command()
 def destroy(
     host_alias: str = typer.Argument(
-        ..., help="SSH host alias for the pod (e.g., runpod-1, local-saes-1)"
+        ...,
+        help="SSH host alias for the pod (e.g., runpod-1, local-saes-1)",
+        autocompletion=complete_alias,
     ),
     force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation prompt"),
 ):
@@ -155,7 +218,9 @@ def track(
 
 @app.command()
 def untrack(
-    alias: str = typer.Argument(..., help="Alias name to remove"),
+    alias: str = typer.Argument(
+        ..., help="Alias name to remove", autocompletion=complete_alias
+    ),
     missing_ok: bool = typer.Option(
         False, "--missing-ok", help="Do not error if alias is missing"
     ),
@@ -172,7 +237,9 @@ def list_aliases():
 
 @app.command()
 def show(
-    alias: str = typer.Argument(..., help="Pod alias to show details for"),
+    alias: str = typer.Argument(
+        ..., help="Pod alias to show details for", autocompletion=complete_alias
+    ),
 ):
     """Show detailed information about a pod."""
     show_command(alias)
@@ -241,7 +308,9 @@ def template_list():
 
 @template_app.command("delete")
 def template_delete(
-    identifier: str = typer.Argument(..., help="Template identifier to delete"),
+    identifier: str = typer.Argument(
+        ..., help="Template identifier to delete", autocompletion=complete_template
+    ),
     missing_ok: bool = typer.Option(
         False, "--missing-ok", help="Do not error if template is missing"
     ),
@@ -258,7 +327,9 @@ def scheduler_tick():
 
 @app.command()
 def cursor(
-    alias: str = typer.Argument(..., help="Pod alias to connect to"),
+    alias: str = typer.Argument(
+        ..., help="Pod alias to connect to", autocompletion=complete_alias
+    ),
     path: str = typer.Argument(
         None, help="Remote path to open (uses config default or /workspace)"
     ),
@@ -269,7 +340,9 @@ def cursor(
 
 @app.command()
 def shell(
-    alias: str = typer.Argument(..., help="Pod alias to connect to"),
+    alias: str = typer.Argument(
+        ..., help="Pod alias to connect to", autocompletion=complete_alias
+    ),
 ):
     """Open an interactive SSH shell to the pod."""
     shell_command(alias)
@@ -277,7 +350,9 @@ def shell(
 
 @app.command()
 def config(
-    alias: str = typer.Argument(..., help="Pod alias to configure"),
+    alias: str = typer.Argument(
+        ..., help="Pod alias to configure", autocompletion=complete_alias
+    ),
     args: list[str] = typer.Argument(
         None, help="Either 'key' to get value, or 'key=value' pairs to set"
     ),

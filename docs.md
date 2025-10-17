@@ -68,6 +68,18 @@ uv tool upgrade rp
 uv tool uninstall rp
 ```
 
+### Enable Tab Completion (Optional)
+
+After installation, enable shell completion for alias and template tab-completion:
+
+```bash
+rp --install-completion
+```
+
+The command will auto-detect your shell (bash, zsh, or fish). You may need to restart your shell or source your shell config file after installation. Once enabled, you can press Tab while typing alias or template names in commands like `rp start`, `rp stop`, `rp show`, etc.
+
+You can also manually specify a shell if auto-detection doesn't work: `rp --install-completion bash` (or `zsh`, `fish`).
+
 ### First Run
 
 On first run, `rp` will prompt for your RunPod API key and save it to `~/.config/rp/runpod_api_key`. To avoid saving the key in plaintext, set the `RUNPOD_API_KEY` environment variable before running commands.

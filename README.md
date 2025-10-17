@@ -23,6 +23,16 @@ Install using [uv](https://docs.astral.sh/uv/):
 uv tool install https://github.com/Arrrlex/rp.git
 ```
 
+### Enable Tab Completion (Optional)
+
+After installation, enable shell completion for alias and template tab-completion:
+
+```bash
+rp --install-completion
+```
+
+The command will auto-detect your shell. You may need to restart your shell or source your shell config file after installation. You can also manually specify a shell: `rp --install-completion bash` (or `zsh`, `fish`).
+
 ## Upgrading
 
 To upgrade to the latest version:
