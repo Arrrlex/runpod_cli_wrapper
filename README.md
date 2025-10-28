@@ -226,31 +226,38 @@ On macOS, the tool automatically sets up a background scheduler using launchd to
 
 The CLI tool uses configuration files stored in `~/.config/rp/` to customize the setup process.
 
-### Setup Scripts
+### Setup Script
 
-Configure the tool by creating two setup scripts:
+`rp` automatically runs a setup script on newly created pods to configure your development environment. A default setup script is provided that installs common tools and configures your shell.
 
-- **`~/.config/rp/setup_remote.sh`** - Script that runs on the remote pod during startup
-- **`~/.config/rp/setup_local.sh`** - Script that runs locally when connecting to a pod. This will have access to the env var `$POD_HOST`.
+**Default Setup Includes:**
+- Essential tools: vim, curl, git, tmux, nvtop, less, htop, jq, unzip
+- Python: uv package manager
+- Node.js: NVM and latest LTS version
+- Shell: Starship prompt with enhanced bash configuration
+- Claude Code CLI
+- Optimized cache directories in `/workspace` (persist across pod restarts)
 
-### Example Configuration Files
+**Customizing Your Setup:**
 
-Example configuration files can be found in the `assets/` folder of this repository:
+1. The first time you run `rp create`, a default setup script is copied to `~/.config/rp/setup.sh`
+2. Edit this file to customize with your own:
+   - Git name and email
+   - Repository clones (use `GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new"` for SSH)
+   - Custom environment variables
+   - Additional tools and packages
 
-- [`assets/example_setup_remote.sh`](assets/example_setup_remote.sh) - Example remote setup script that:
-  - Updates the system and installs essential tools (vim, curl, git, tmux, nvtop)
-  - Installs uv (Python package manager)
-  - Configures SSH for GitHub access
-  - Sets up Git configuration
-  - Sets environment variables for HuggingFace and uv cache directories
-
-- [`assets/example_setup_local.sh`](assets/example_setup_local.sh) - Example local setup script that:
-  - Copies SSH keys to the remote pod for GitHub access
-
-Copy these example files to your configuration directory and customize them for your needs:
+**Example customizations:**
 
 ```bash
-mkdir -p ~/.config/rp
-cp assets/example_setup_remote.sh ~/.config/rp/setup_remote.sh
-cp assets/example_setup_local.sh ~/.config/rp/setup_local.sh
+# Add to ~/.config/rp/setup.sh
+
+# Clone your repositories
+GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new" \
+    git clone git@github.com:username/repo.git /workspace/repo
+
+# Set custom environment variables
+echo 'export OPENAI_API_KEY=your-key-here' >> ~/.bashrc
 ```
+
+See [`assets/example_setup.sh`](assets/example_setup.sh) for a complete example.

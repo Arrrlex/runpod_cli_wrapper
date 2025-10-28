@@ -95,8 +95,7 @@ All configuration stored in `~/.config/rp/`:
 - `pods.json`: Aliases, templates, per-pod config (managed by `AppConfig` model)
 - `schedule.json`: Scheduled tasks (managed by `Scheduler`)
 - `runpod_api_key`: API key (optional, can use env var)
-- `setup_remote.sh`: Script run on pod (optional)
-- `setup_local.sh`: Script run locally with `$POD_HOST` env var (optional)
+- `setup.sh`: Script run on pod during startup (optional, default provided)
 
 ### Key Design Patterns
 

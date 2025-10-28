@@ -19,7 +19,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
-from rp.config import API_KEY_FILE, LOCAL_SETUP_FILE, REMOTE_SETUP_FILE
+from rp.config import API_KEY_FILE, SETUP_FILE
 from rp.core.models import GPUSpec, Pod, PodConfig, PodStatus, ScheduleTask
 from rp.utils.api_client import RunPodAPIClient
 from rp.utils.errors import RunPodCLIError
@@ -333,51 +333,43 @@ def run_local_command_stream(command_list: list[str]) -> None:
 
 
 def run_setup_scripts(alias: str) -> None:
-    """Run local and remote setup scripts if they exist."""
-    if LOCAL_SETUP_FILE.exists():
-        console.print("⚙️  Running local setup…")
+    """Run setup script on the pod if it exists."""
+    if not SETUP_FILE.exists():
+        return
+
+    console.print("⚙️  Running setup script…")
+    setup_script = SETUP_FILE.read_text()
+
+    # Use temp file for safety
+    with tempfile.NamedTemporaryFile(
+        mode="w", delete=False, suffix=".sh", prefix="setup_pod_"
+    ) as temp_script:
+        temp_script.write(setup_script)
+        local_script_path = Path(temp_script.name)
+
+    try:
+        remote_script_path = "/tmp/setup_pod.sh"
+
+        console.print("    1. Copying setup script to pod…")
         run_local_command(
-            ["bash", str(LOCAL_SETUP_FILE)],
-            POD_HOST=alias,
+            [
+                "scp",
+                "-o",
+                "StrictHostKeyChecking=no",
+                str(local_script_path),
+                f"{alias}:{remote_script_path}",
+            ]
         )
 
-    if REMOTE_SETUP_FILE.exists():
-        console.print("⚙️  Running remote setup via scp…")
-        remote_setup_script = REMOTE_SETUP_FILE.read_text()
+        console.print("    2. Making script executable…")
+        run_local_command(["ssh", alias, f"chmod +x {remote_script_path}"])
 
-        # Use temp file for safety
-        with tempfile.NamedTemporaryFile(
-            mode="w", delete=False, suffix=".sh", prefix="setup_pod_"
-        ) as temp_script:
-            temp_script.write(remote_setup_script)
-            local_script_path = Path(temp_script.name)
+        console.print("    3. Executing setup script on pod…")
+        run_local_command_stream(["ssh", "-A", alias, remote_script_path])
 
-        try:
-            remote_script_path = "/tmp/setup_pod.sh"
-
-            console.print("    2. Copying setup script to pod…")
-            run_local_command(
-                [
-                    "scp",
-                    "-o",
-                    "StrictHostKeyChecking=no",
-                    str(local_script_path),
-                    f"{alias}:{remote_script_path}",
-                ]
-            )
-
-            console.print("    3. Making script executable…")
-            run_local_command(["ssh", alias, f"chmod +x {remote_script_path}"])
-
-            console.print("    4. Executing setup script on pod…")
-            run_local_command_stream(["ssh", "-A", alias, remote_script_path])
-
-            console.print("✅ Remote setup complete.")
-
-        finally:
-            # Cleanup temp file
-            local_script_path.unlink()
-
-    # Print completion message if any setup scripts ran
-    if LOCAL_SETUP_FILE.exists() or REMOTE_SETUP_FILE.exists():
+        console.print("✅ Setup complete.")
         console.print(f"🎉 Finished setting up pod '[bold green]{alias}[/bold green]'")
+
+    finally:
+        # Cleanup temp file
+        local_script_path.unlink()

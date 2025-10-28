@@ -12,8 +12,7 @@ from pathlib import Path
 CONFIG_DIR = Path.home() / ".config" / "rp"
 POD_CONFIG_FILE = CONFIG_DIR / "pods.json"
 API_KEY_FILE = CONFIG_DIR / "runpod_api_key"
-REMOTE_SETUP_FILE = CONFIG_DIR / "setup_remote.sh"
-LOCAL_SETUP_FILE = CONFIG_DIR / "setup_local.sh"
+SETUP_FILE = CONFIG_DIR / "setup.sh"
 
 # The full path to your SSH config file.
 SSH_CONFIG_FILE = Path.home() / ".ssh" / "config"

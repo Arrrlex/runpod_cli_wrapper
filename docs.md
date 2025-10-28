@@ -147,7 +147,7 @@ rp create --alias my-pod --gpu 2xA100 --storage 500GB --dry-run
 3. Applies any config values specified via `--config` flags
 4. Waits for pod to be running and SSH to be available
 5. Updates SSH config (`~/.ssh/config`)
-6. Runs setup scripts (`setup_local.sh` and `setup_remote.sh`)
+6. Runs setup script (`setup.sh`)
 
 ---
 
@@ -666,8 +666,7 @@ All configuration is stored in `~/.config/rp/`.
 ├── runpod_api_key        # RunPod API key (optional)
 ├── pods.json             # Pod aliases and configuration
 ├── schedule.json         # Scheduled tasks
-├── setup_remote.sh       # Remote setup script (optional)
-└── setup_local.sh        # Local setup script (optional)
+└── setup.sh              # Setup script (optional, default provided)
 ```
 
 ---
@@ -764,7 +763,7 @@ YOUR_RUNPOD_API_KEY_HERE
 
 ---
 
-#### `setup_remote.sh`
+#### `setup.sh`
 
 Optional script that runs on the remote pod during startup (after `rp create` or `rp start`).
 
@@ -777,7 +776,7 @@ Optional script that runs on the remote pod during startup (after `rp create` or
 - Has network access
 - Can install packages, configure services, etc.
 
-**Example:** See `assets/example_setup_remote.sh` in the repository
+**Example:** See `assets/example_setup.sh` in the repository
 
 **Common use cases:**
 - Install system packages
@@ -785,27 +784,6 @@ Optional script that runs on the remote pod during startup (after `rp create` or
 - Set environment variables
 - Install development tools
 - Configure Git settings
-
----
-
-#### `setup_local.sh`
-
-Optional script that runs locally when connecting to a pod.
-
-**When it runs:**
-- After `setup_remote.sh` completes
-- During `rp create` and `rp start`
-
-**Environment variables:**
-- `$POD_HOST`: The pod alias (can be used with SSH/SCP)
-
-**Example:** See `assets/example_setup_local.sh` in the repository
-
-**Common use cases:**
-- Copy SSH keys to pod
-- Copy configuration files
-- Upload credentials
-- Run local preparation tasks
 
 ---
 
@@ -879,8 +857,7 @@ launchctl kickstart -k gui/$(id -u)/com.rp.scheduler
 | `~/.config/rp/runpod_api_key` | RunPod API key | Plain text |
 | `~/.config/rp/pods.json` | Pod aliases and configuration | JSON |
 | `~/.config/rp/schedule.json` | Scheduled tasks | JSON |
-| `~/.config/rp/setup_remote.sh` | Remote setup script | Bash script |
-| `~/.config/rp/setup_local.sh` | Local setup script | Bash script |
+| `~/.config/rp/setup.sh` | Setup script (default provided) | Bash script |
 
 ### macOS Scheduler Files
 
@@ -915,17 +892,6 @@ export RUNPOD_API_KEY="your_api_key_here"
 rp list
 ```
 
-### `POD_HOST`
-
-Available in `setup_local.sh` script. Contains the pod alias being set up.
-
-**Example usage in setup_local.sh:**
-```bash
-#!/bin/bash
-scp ~/.ssh/my_key $POD_HOST:/root/.ssh/
-```
-
----
 
 ## Workflow Guide
 
@@ -945,14 +911,10 @@ scp ~/.ssh/my_key $POD_HOST:/root/.ssh/
    rp list
    ```
 
-3. **Create setup scripts (optional):**
-   ```bash
-   mkdir -p ~/.config/rp
-   cp assets/example_setup_remote.sh ~/.config/rp/setup_remote.sh
-   cp assets/example_setup_local.sh ~/.config/rp/setup_local.sh
-   chmod +x ~/.config/rp/*.sh
-   # Edit these files to customize
-   ```
+3. **Customize setup script (optional):**
+
+   A default setup script is automatically created at `~/.config/rp/setup.sh` on first use.
+   Edit this file to customize your pod environment with your own Git config, repositories, and tools.
 
 ---
 
@@ -1120,20 +1082,12 @@ rp create ml --config path=/workspace/custom
 
 ### Setup Script Environment Variables
 
-**In setup_remote.sh:**
+**In setup.sh:**
 ```bash
 #!/bin/bash
 # Example: Set environment variables for HuggingFace
 echo 'export HF_HOME=/workspace/huggingface' >> ~/.bashrc
 echo 'export UV_CACHE_DIR=/workspace/uv' >> ~/.bashrc
-```
-
-**In setup_local.sh:**
-```bash
-#!/bin/bash
-# $POD_HOST is set to the pod alias
-scp ~/.ssh/github_key $POD_HOST:/root/.ssh/github_key
-scp ~/.config/myapp/config.yaml $POD_HOST:/workspace/
 ```
 
 ---
@@ -1513,7 +1467,7 @@ rp shell train-1
 
 ### Example: Custom Setup Scripts
 
-**~/.config/rp/setup_remote.sh:**
+**~/.config/rp/setup.sh:**
 ```bash
 #!/bin/bash
 set -ex
@@ -1538,18 +1492,6 @@ cd /workspace
 git clone git@github.com:yourname/yourrepo.git
 ```
 
-**~/.config/rp/setup_local.sh:**
-```bash
-#!/bin/bash
-set -e
-
-# Copy SSH keys
-scp ~/.ssh/github_key $POD_HOST:/root/.ssh/
-scp ~/.ssh/config $POD_HOST:/root/.ssh/
-
-# Copy environment files
-scp ~/.env.production $POD_HOST:/workspace/.env
-```
 
 ---
 

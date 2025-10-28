@@ -47,17 +47,13 @@ def temp_config_dir():
         config.POD_CONFIG_FILE = config.CONFIG_DIR / "pods.json"
         config.API_KEY_FILE = config.CONFIG_DIR / "runpod_api_key"
         config.SCHEDULE_FILE = config.CONFIG_DIR / "schedule.json"
-        config.LOCAL_SETUP_FILE = config.CONFIG_DIR / "setup_local.sh"
-        config.REMOTE_SETUP_FILE = config.CONFIG_DIR / "setup_remote.sh"
+        config.SETUP_FILE = config.CONFIG_DIR / "setup.sh"
 
         ensure_config_dir_exists()
 
-        # Create empty setup scripts to avoid errors
-        config.LOCAL_SETUP_FILE.write_text(
-            "#!/bin/bash\n# Test setup script\necho 'Local setup complete'"
-        )
-        config.REMOTE_SETUP_FILE.write_text(
-            "#!/bin/bash\n# Test setup script\necho 'Remote setup complete'"
+        # Create empty setup script to avoid errors
+        config.SETUP_FILE.write_text(
+            "#!/bin/bash\n# Test setup script\necho 'Setup complete'"
         )
 
         yield config.CONFIG_DIR
@@ -67,8 +63,7 @@ def temp_config_dir():
         config.POD_CONFIG_FILE = original_config_dir / "pods.json"
         config.API_KEY_FILE = original_config_dir / "runpod_api_key"
         config.SCHEDULE_FILE = original_config_dir / "schedule.json"
-        config.LOCAL_SETUP_FILE = original_config_dir / "setup_local.sh"
-        config.REMOTE_SETUP_FILE = original_config_dir / "setup_remote.sh"
+        config.SETUP_FILE = original_config_dir / "setup.sh"
 
 
 @pytest.fixture
