@@ -288,4 +288,4 @@ GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new" \
 echo 'export OPENAI_API_KEY=your-key-here' >> ~/.bashrc
 ```
 
-See [`assets/example_setup.sh`](assets/example_setup.sh) for a complete example.
+See [`assets/default_setup.sh`](assets/default_setup.sh) for the default setup script that will be customized with your git config.

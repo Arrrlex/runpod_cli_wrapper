@@ -787,7 +787,7 @@ Script that runs on the remote pod during startup (after `rp create`).
 - Has network access
 - Can install packages, configure services, etc.
 
-**Example:** See `assets/default_setup.sh` or `assets/example_setup.sh` in the repository
+**Example:** See `assets/default_setup.sh` in the repository
 
 **Common use cases:**
 - Install system packages
