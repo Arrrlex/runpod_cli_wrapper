@@ -332,8 +332,72 @@ def run_local_command_stream(command_list: list[str]) -> None:
         raise typer.Exit(1) from e
 
 
+def ensure_setup_script_exists() -> None:
+    """Ensure setup script exists, creating from default if needed with user's git config."""
+    if SETUP_FILE.exists():
+        return
+
+    # Prompt for git configuration
+    console.print("🔧 First time setup - configuring your git identity")
+    console.print("   (This will be used in the setup script for all pods)")
+
+    try:
+        git_name = questionary.text(
+            "Enter your name for git commits:",
+            default=os.environ.get("GIT_AUTHOR_NAME", "Your Name"),
+        ).ask()
+
+        if not git_name:
+            console.print("❌ Name is required", style="red")
+            raise typer.Exit(1)
+
+        git_email = questionary.text(
+            "Enter your email for git commits:",
+            default=os.environ.get("GIT_AUTHOR_EMAIL", "your.email@example.com"),
+        ).ask()
+
+        if not git_email:
+            console.print("❌ Email is required", style="red")
+            raise typer.Exit(1)
+
+    except (EOFError, KeyboardInterrupt):
+        console.print("\n❌ Setup cancelled.", style="red")
+        raise typer.Exit(1) from None
+
+    # Load default setup script
+    assets_dir = Path(__file__).parent.parent.parent.parent / "assets"
+    default_setup = assets_dir / "default_setup.sh"
+
+    if not default_setup.exists():
+        console.print(
+            f"❌ Default setup script not found at {default_setup}", style="red"
+        )
+        raise typer.Exit(1)
+
+    setup_content = default_setup.read_text()
+
+    # Replace placeholders with user values
+    setup_content = setup_content.replace(
+        'git config --global user.name "Your Name"',
+        f'git config --global user.name "{git_name}"',
+    )
+    setup_content = setup_content.replace(
+        'git config --global user.email "your.email@example.com"',
+        f'git config --global user.email "{git_email}"',
+    )
+
+    # Write to config directory
+    SETUP_FILE.parent.mkdir(parents=True, exist_ok=True)
+    SETUP_FILE.write_text(setup_content)
+
+    console.print(f"✅ Created setup script at {SETUP_FILE}")
+    console.print("   You can customize it by editing this file.")
+
+
 def run_setup_scripts(alias: str) -> None:
     """Run setup script on the pod if it exists."""
+    ensure_setup_script_exists()
+
     if not SETUP_FILE.exists():
         return
 

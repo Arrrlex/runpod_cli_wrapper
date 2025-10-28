@@ -1,6 +1,14 @@
 # RunPod CLI Wrapper
 
-This is a little wrapper around runpod's python API. It provides some neat things like scheduling pod shutdowns, running scripts automatically on starting/creating a pod, and managing pod templates for quick deployment.
+A batteries-included CLI for managing RunPod GPU pods. Get a fully configured development environment with one command, or customize everything to your needs.
+
+**Key features:**
+- 🚀 Default templates for common GPUs (h100, 2h100, 5090, a40)
+- 🛠️ Automatic setup with essential dev tools, shell config, and SSH access
+- 📦 Template system for repeatable deployments
+- ⏰ Scheduled pod shutdowns to save costs
+- 🔑 SSH config management
+- ⚙️ Per-pod configuration
 
 ## 📚 Complete Documentation
 
@@ -51,11 +59,19 @@ uv tool uninstall rp
 
 ## Quick Start
 
-Here's the simplest workflow for managing a single pod:
+Get a fully configured GPU pod with one command:
 
 ```bash
-# Create a new pod
-rp create --alias my-pod --gpu 2xH100 --storage 500GB
+# Create a pod using a default template (h100, 2h100, 5090, a40)
+rp create h100
+
+# This automatically:
+# - Creates the pod with sensible defaults (1xH100, 500GB storage)
+# - Sets up SSH access
+# - Installs essential tools (git, vim, tmux, nvtop, etc.)
+# - Configures your shell with Starship prompt
+# - Installs uv (Python), NVM/Node.js, and Claude Code CLI
+# All tools and configs persist in /workspace across restarts
 
 # Open Cursor editor connected to the pod
 rp cursor
@@ -63,17 +79,29 @@ rp cursor
 # Or open an SSH shell
 rp shell
 
-# Stop the pod when done
+# Stop the pod when done (data in /workspace is preserved)
 rp stop
 
-# Start it again later
+# Start it again later - everything is still configured
 rp start
 
 # Destroy the pod when you're finished with it
 rp destroy
 ```
 
-The first time you run a `rp` command, it will ask you to provide your RunPod API key. It will save this in `~/.config/rp/runpod_api_key`. If you don't want this saved in plaintext locally, make sure that the `RUNPOD_API_KEY` env var is set when you run `rp`.
+**First-time Setup:**
+
+The first time you run `rp create`, it will prompt you for:
+- Your RunPod API key (saved to `~/.config/rp/runpod_api_key`)
+- Your name and email for git commits
+
+**Want More Control?**
+
+- Customize the setup script: Edit `~/.config/rp/setup.sh`
+- Create custom templates: `rp template create my-template --gpu 2xA100 --storage 1TB`
+- Manual pod configuration: `rp create --alias my-pod --gpu 2xA100 --storage 1TB`
+
+See the [complete documentation](docs.md) for advanced features like scheduling, templates, and per-pod configuration.
 
 **Note:** If you're managing multiple pods, you'll need to specify which pod to use by providing its alias (e.g., `rp start my-pod`). When you have only one pod, `rp` automatically selects it. With multiple pods, `rp` will present an interactive menu to choose from. See [Working with Multiple Pods](#working-with-multiple-pods) for details.
 

@@ -82,7 +82,12 @@ You can also manually specify a shell if auto-detection doesn't work: `rp --inst
 
 ### First Run
 
-On first run, `rp` will prompt for your RunPod API key and save it to `~/.config/rp/runpod_api_key`. To avoid saving the key in plaintext, set the `RUNPOD_API_KEY` environment variable before running commands.
+On first run, `rp` will prompt for:
+
+1. **RunPod API key** - Saved to `~/.config/rp/runpod_api_key` (or set `RUNPOD_API_KEY` environment variable to avoid saving in plaintext)
+2. **Git identity** - Your name and email for git commits, used to configure the default setup script
+
+The git configuration is used to create a personalized setup script at `~/.config/rp/setup.sh`, which will be run on all newly created pods.
 
 ---
 
@@ -765,18 +770,24 @@ YOUR_RUNPOD_API_KEY_HERE
 
 #### `setup.sh`
 
-Optional script that runs on the remote pod during startup (after `rp create` or `rp start`).
+Script that runs on the remote pod during startup (after `rp create`).
+
+**Automatic Creation:**
+- On first use, `rp` prompts for your git name and email
+- A default setup script is created at `~/.config/rp/setup.sh` with your git config
+- The default includes: essential tools, Python/Node.js, shell config, and more
+- You can customize it by editing the file
 
 **When it runs:**
 - After pod is created and SSH is available
-- After pod is started from stopped state
+- Only runs once during `rp create`, not on subsequent `rp start`
 
 **Environment:**
 - Runs as root on the pod
 - Has network access
 - Can install packages, configure services, etc.
 
-**Example:** See `assets/example_setup.sh` in the repository
+**Example:** See `assets/default_setup.sh` or `assets/example_setup.sh` in the repository
 
 **Common use cases:**
 - Install system packages
