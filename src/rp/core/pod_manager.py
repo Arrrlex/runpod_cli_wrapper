@@ -8,6 +8,7 @@ including creation, lifecycle management, and status tracking.
 import json
 
 from rp.config import POD_CONFIG_FILE, ensure_config_dir_exists
+from rp.core.default_templates import get_default_templates, is_default_template
 from rp.core.models import (
     AppConfig,
     Pod,
@@ -236,28 +237,52 @@ class PodManager:
         self._save_config()
 
     def get_template(self, identifier: str) -> PodTemplate:
-        """Get a pod template by identifier."""
+        """Get a pod template by identifier (checks user templates, then defaults)."""
+        # First check user templates
         template = self.config.get_template(identifier)
-        if template is None:
-            available = list(self.config.pod_templates.keys())
-            raise AliasError.not_found(identifier, available)
-        return template
+        if template is not None:
+            return template
+
+        # Check default templates
+        default_templates = get_default_templates()
+        if identifier in default_templates:
+            return default_templates[identifier]
+
+        # Not found in either - raise error with all available options
+        user_templates = list(self.config.pod_templates.keys())
+        default_template_ids = list(default_templates.keys())
+        available = sorted(set(user_templates + default_template_ids))
+        raise AliasError.not_found(identifier, available)
 
     def remove_template(
         self, identifier: str, missing_ok: bool = False
     ) -> PodTemplate | None:
         """Remove a template, return the template if it existed."""
+        # Prevent deletion of default templates
+        if is_default_template(identifier):
+            raise AliasError(
+                f"Cannot delete default template '{identifier}'. "
+                "Default templates are read-only."
+            )
+
         template = self.config.remove_template(identifier)
         if template is None and not missing_ok:
-            available = list(self.config.pod_templates.keys())
-            raise AliasError.not_found(identifier, available)
+            user_templates = list(self.config.pod_templates.keys())
+            raise AliasError.not_found(identifier, user_templates)
         if template is not None:
             self._save_config()
         return template
 
     def list_templates(self) -> list[PodTemplate]:
-        """List all pod templates."""
-        return sorted(self.config.pod_templates.values(), key=lambda t: t.identifier)
+        """List all pod templates (user templates override defaults with same identifier)."""
+        # Start with default templates
+        templates = get_default_templates().copy()
+
+        # Override with user templates (if they have the same identifier)
+        for identifier, template in self.config.pod_templates.items():
+            templates[identifier] = template
+
+        return sorted(templates.values(), key=lambda t: t.identifier)
 
     def create_pod_from_template(
         self,

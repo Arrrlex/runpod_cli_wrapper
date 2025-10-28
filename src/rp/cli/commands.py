@@ -674,6 +674,8 @@ def template_create_command(
 def template_list_command() -> None:
     """List all pod templates."""
     try:
+        from rp.core.default_templates import is_default_template
+
         pod_manager = get_pod_manager()
         templates = pod_manager.list_templates()
 
@@ -690,6 +692,7 @@ def template_list_command() -> None:
         table.add_column("Storage", style="yellow")
         table.add_column("Container Disk", style="yellow")
         table.add_column("Image", style="blue")
+        table.add_column("Source", style="dim")
 
         for template in templates:
             image_display = template.image if template.image else "(default)"
@@ -698,6 +701,7 @@ def template_list_command() -> None:
                 if template.container_disk_spec
                 else "(default: 20GB)"
             )
+            source = "default" if is_default_template(template.identifier) else "user"
             table.add_row(
                 template.identifier,
                 template.alias_template,
@@ -705,6 +709,7 @@ def template_list_command() -> None:
                 template.storage_spec,
                 container_disk_display,
                 image_display,
+                source,
             )
 
         console.print(table)

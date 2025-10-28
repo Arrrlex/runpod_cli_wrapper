@@ -118,7 +118,30 @@ rp untrack my-pod-1
 
 ### Pod Templates
 
-Templates let you save common pod configurations and reuse them with automatic alias numbering:
+Templates let you save common pod configurations and reuse them with automatic alias numbering.
+
+**Default Templates**
+
+`rp` ships with several default templates for common GPU configurations:
+
+- **h100** - Single H100 GPU, 500GB storage
+- **2h100** - Two H100 GPUs, 500GB storage
+- **5090** - Single RTX 5090 GPU, 500GB storage
+- **a40** - Single A40 GPU, 500GB storage
+
+You can use these immediately:
+
+```bash
+# Create a pod using a default template
+rp create h100        # Creates h100-1, h100-2, etc.
+rp create 2h100       # Creates 2h100-1, 2h100-2, etc.
+```
+
+Default templates are read-only and cannot be deleted, but you can create your own templates with the same name to override them.
+
+**Custom Templates**
+
+Create your own templates for repeated deployments:
 
 ```bash
 # Create a template with default config
