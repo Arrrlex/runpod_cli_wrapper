@@ -153,7 +153,7 @@ def create(
 @app.command()
 def start(
     host_alias: str = typer.Argument(
-        ...,
+        None,
         help="SSH host alias for the pod (e.g., runpod-1, local-saes-1)",
         autocompletion=complete_alias,
     ),
@@ -165,7 +165,7 @@ def start(
 @app.command()
 def stop(
     host_alias: str = typer.Argument(
-        ...,
+        None,
         help="SSH host alias for the pod (e.g., runpod-1, local-saes-1)",
         autocompletion=complete_alias,
     ),
@@ -192,7 +192,7 @@ def stop(
 @app.command()
 def destroy(
     host_alias: str = typer.Argument(
-        ...,
+        None,
         help="SSH host alias for the pod (e.g., runpod-1, local-saes-1)",
         autocompletion=complete_alias,
     ),
@@ -219,7 +219,7 @@ def track(
 @app.command()
 def untrack(
     alias: str = typer.Argument(
-        ..., help="Alias name to remove", autocompletion=complete_alias
+        None, help="Alias name to remove", autocompletion=complete_alias
     ),
     missing_ok: bool = typer.Option(
         False, "--missing-ok", help="Do not error if alias is missing"
@@ -238,7 +238,7 @@ def list_aliases():
 @app.command()
 def show(
     alias: str = typer.Argument(
-        ..., help="Pod alias to show details for", autocompletion=complete_alias
+        None, help="Pod alias to show details for", autocompletion=complete_alias
     ),
 ):
     """Show detailed information about a pod."""
@@ -328,7 +328,7 @@ def scheduler_tick():
 @app.command()
 def cursor(
     alias: str = typer.Argument(
-        ..., help="Pod alias to connect to", autocompletion=complete_alias
+        None, help="Pod alias to connect to", autocompletion=complete_alias
     ),
     path: str = typer.Argument(
         None, help="Remote path to open (uses config default or /workspace)"
@@ -341,7 +341,7 @@ def cursor(
 @app.command()
 def shell(
     alias: str = typer.Argument(
-        ..., help="Pod alias to connect to", autocompletion=complete_alias
+        None, help="Pod alias to connect to", autocompletion=complete_alias
     ),
 ):
     """Open an interactive SSH shell to the pod."""
@@ -351,7 +351,7 @@ def shell(
 @app.command()
 def config(
     alias: str = typer.Argument(
-        ..., help="Pod alias to configure", autocompletion=complete_alias
+        None, help="Pod alias to configure", autocompletion=complete_alias
     ),
     args: list[str] = typer.Argument(
         None, help="Either 'key' to get value, or 'key=value' pairs to set"

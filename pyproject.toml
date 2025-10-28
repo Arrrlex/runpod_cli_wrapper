@@ -10,6 +10,7 @@ dependencies = [
     "rich>=14.1.0",
     "runpod>=1.7.13",
     "typer>=0.16.0",
+    "questionary>=2.1.1",
 ]
 
 [build-system]

@@ -49,33 +49,72 @@ To uninstall:
 uv tool uninstall rp
 ```
 
-## Usage
+## Quick Start
 
-After installation, use the `rp` command to interact with your RunPod instances:
+Here's the simplest workflow for managing a single pod:
 
 ```bash
-rp --help
+# Create a new pod
+rp create --alias my-pod --gpu 2xH100 --storage 500GB
+
+# Open Cursor editor connected to the pod
+rp cursor
+
+# Or open an SSH shell
+rp shell
+
+# Stop the pod when done
+rp stop
+
+# Start it again later
+rp start
+
+# Destroy the pod when you're finished with it
+rp destroy
 ```
 
-This will show you all available commands and options for managing your pods.
+The first time you run a `rp` command, it will ask you to provide your RunPod API key. It will save this in `~/.config/rp/runpod_api_key`. If you don't want this saved in plaintext locally, make sure that the `RUNPOD_API_KEY` env var is set when you run `rp`.
 
-The workflow is roughly:
+**Note:** If you're managing multiple pods, you'll need to specify which pod to use by providing its alias (e.g., `rp start my-pod`). When you have only one pod, `rp` automatically selects it. With multiple pods, `rp` will present an interactive menu to choose from. See [Working with Multiple Pods](#working-with-multiple-pods) for details.
 
-1. **Create pods directly**: `rp create --alias alex-ast-2 --gpu 2xH100 --storage 500GB` creates a pod and adds it to the list that `rp` manages
-2. **Or use templates for repeated deployments**:
-   - Create a template: `rp template create my-template --alias-pattern "my-pod-{i}" --gpu 2xH100 --storage 500GB`
-   - Use template: `rp create my-template` (automatically creates `my-pod-1`, `my-pod-2`, etc.)
-3. **Track existing pods**: For any pods created using the RunPod website, `rp track <alias> <id>` adds it to `rp`'s local config
-4. **List pods**: `rp list` shows you all rp's managed pods and their status (running, stopped, or invalid if they don't exist)
-5. **View pod details**: `rp show <alias>` displays comprehensive information including GPU, storage, cost, and scheduled tasks
-6. **Connect to pods**:
-   - `rp shell <alias>` opens an interactive SSH shell to the pod
-   - `rp cursor <alias> [path]` opens Cursor editor connected to the pod (defaults to /workspace or configured path)
-7. **Configure pods**: Set per-pod configuration like default Cursor paths, see [Pod Configuration](#pod-configuration)
-8. **Stop pods**: `rp stop <alias>` stops a pod. Alternatively you can schedule shutting down a pod, see [Scheduling](#scheduling)
-9. **Destroy pods**: `rp destroy <alias>` terminates a pod (with confirmation prompt; use `--force` to skip)
+## Working with Multiple Pods
 
-The first time you run a `rp` command, it will ask you to provide your runpod API key. It will save this in `~/.config/rp/runpod_api_key`. If you don't want this saved in plaintext locally, make sure that the `RUNPOD_API_KEY` env var is set when you run `rp`.
+When managing multiple pods, you have two options:
+
+**1. Specify the alias explicitly:**
+```bash
+rp start my-pod-1
+rp shell my-pod-2
+rp stop my-pod-1
+```
+
+**2. Use interactive selection:**
+
+If you don't provide an alias and have multiple pods, `rp` will show an interactive menu:
+
+```bash
+$ rp start
+? Select a pod: (Use arrow keys)
+ ❯ my-pod-1
+   my-pod-2
+   my-pod-3
+```
+
+**Additional commands for managing multiple pods:**
+
+```bash
+# List all your pods and their status
+rp list
+
+# Show detailed information about a specific pod
+rp show my-pod-1
+
+# Track an existing pod created via RunPod website
+rp track my-existing-pod <pod-id>
+
+# Stop tracking a pod (doesn't destroy it, just removes the alias)
+rp untrack my-pod-1
+```
 
 ### Pod Templates
 

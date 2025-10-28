@@ -11,7 +11,9 @@ import os
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 
+import questionary
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -21,6 +23,9 @@ from rp.config import API_KEY_FILE, LOCAL_SETUP_FILE, REMOTE_SETUP_FILE
 from rp.core.models import GPUSpec, Pod, PodConfig, PodStatus, ScheduleTask
 from rp.utils.api_client import RunPodAPIClient
 from rp.utils.errors import RunPodCLIError
+
+if TYPE_CHECKING:
+    from rp.core.pod_manager import PodManager
 
 console = Console()
 
@@ -57,6 +62,52 @@ def setup_api_client() -> RunPodAPIClient:
         console.print("🔐 Saved RunPod API key for future use.")
 
     return RunPodAPIClient(api_key)
+
+
+def select_pod_if_needed(alias: str | None, pod_manager: "PodManager") -> str:
+    """
+    Select a pod alias interactively if not provided.
+
+    Args:
+        alias: Pod alias if already specified, or None
+        pod_manager: PodManager instance to fetch pod list
+
+    Returns:
+        Selected pod alias
+
+    Raises:
+        typer.Exit: If no pods are available or user cancels
+    """
+    if alias is not None:
+        return alias
+
+    # Get all pods
+    all_aliases = list(pod_manager.aliases.keys())
+
+    if len(all_aliases) == 0:
+        console.print(
+            "❌ No pods found. Create a pod first with 'rp create'.", style="red"
+        )
+        raise typer.Exit(1)
+
+    if len(all_aliases) == 1:
+        selected = all_aliases[0]
+        console.print(f"ℹ️  Using pod '[bold cyan]{selected}[/bold cyan]'")
+        return selected
+
+    # Multiple pods - show interactive menu
+    selected = questionary.select(
+        "Select a pod:",
+        choices=sorted(all_aliases),
+        style=questionary.Style([("selected", "fg:cyan bold")]),
+    ).ask()
+
+    if selected is None:
+        # User cancelled (Ctrl+C)
+        console.print("❌ Cancelled", style="red")
+        raise typer.Exit(1)
+
+    return selected
 
 
 def handle_cli_error(error: Exception) -> None:
@@ -326,3 +377,7 @@ def run_setup_scripts(alias: str) -> None:
         finally:
             # Cleanup temp file
             local_script_path.unlink()
+
+    # Print completion message if any setup scripts ran
+    if LOCAL_SETUP_FILE.exists() or REMOTE_SETUP_FILE.exists():
+        console.print(f"🎉 Finished setting up pod '[bold green]{alias}[/bold green]'")

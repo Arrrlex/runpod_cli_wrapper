@@ -20,6 +20,7 @@ from rp.cli.utils import (
     parse_gpu_spec,
     parse_storage_spec,
     run_setup_scripts,
+    select_pod_if_needed,
     setup_api_client,
 )
 from rp.core.models import PodCreateRequest, PodTemplate, SSHConfig
@@ -247,10 +248,11 @@ def create_command(  # noqa: PLR0915  # Function complexity acceptable for main 
         handle_cli_error(e)
 
 
-def start_command(alias: str) -> None:
+def start_command(alias: str | None) -> None:
     """Start/resume a RunPod instance."""
     try:
         pod_manager = get_pod_manager()
+        alias = select_pod_if_needed(alias, pod_manager)
 
         console.print(f"🚀 Starting pod '[bold]{alias}[/bold]'…")
 
@@ -293,7 +295,7 @@ def start_command(alias: str) -> None:
 
 
 def stop_command(
-    alias: str,
+    alias: str | None,
     at: str | None = None,
     in_: str | None = None,
     dry_run: bool = False,
@@ -302,6 +304,7 @@ def stop_command(
     try:
         # Validate alias exists
         pod_manager = get_pod_manager()
+        alias = select_pod_if_needed(alias, pod_manager)
         pod_manager.get_pod_id(alias)  # Raises if not found
 
         if at and in_:
@@ -366,10 +369,11 @@ def stop_command(
         handle_cli_error(e)
 
 
-def destroy_command(alias: str, force: bool = False) -> None:
+def destroy_command(alias: str | None, force: bool = False) -> None:
     """Terminate a pod, remove SSH config, and delete the alias."""
     try:
         pod_manager = get_pod_manager()
+        alias = select_pod_if_needed(alias, pod_manager)
 
         # Confirm destruction unless force is set
         if not force:
@@ -412,10 +416,11 @@ def track_command(alias: str, pod_id: str, force: bool = False) -> None:
         handle_cli_error(e)
 
 
-def untrack_command(alias: str, missing_ok: bool = False) -> None:
+def untrack_command(alias: str | None, missing_ok: bool = False) -> None:
     """Stop tracking a pod (removes alias mapping)."""
     try:
         pod_manager = get_pod_manager()
+        alias = select_pod_if_needed(alias, pod_manager)
         pod_id = pod_manager.remove_alias(alias, missing_ok)
 
         if pod_id:
@@ -438,10 +443,11 @@ def list_command() -> None:
         handle_cli_error(e)
 
 
-def show_command(alias: str) -> None:
+def show_command(alias: str | None) -> None:
     """Show detailed information about a pod."""
     try:
         pod_manager = get_pod_manager()
+        alias = select_pod_if_needed(alias, pod_manager)
         scheduler = get_scheduler()
 
         # Get pod details
@@ -724,10 +730,11 @@ def template_delete_command(identifier: str, missing_ok: bool = False) -> None:
         handle_cli_error(e)
 
 
-def cursor_command(alias: str, path: str | None = None) -> None:
+def cursor_command(alias: str | None, path: str | None = None) -> None:
     """Open Cursor editor with remote SSH connection to pod."""
     try:
         pod_manager = get_pod_manager()
+        alias = select_pod_if_needed(alias, pod_manager)
         pod_manager.get_pod_id(alias)  # Validate alias exists
 
         import subprocess
@@ -753,10 +760,11 @@ def cursor_command(alias: str, path: str | None = None) -> None:
         handle_cli_error(e)
 
 
-def shell_command(alias: str) -> None:
+def shell_command(alias: str | None) -> None:
     """Open an interactive SSH shell to the pod."""
     try:
         pod_manager = get_pod_manager()
+        alias = select_pod_if_needed(alias, pod_manager)
         pod_manager.get_pod_id(alias)  # Validate alias exists
 
         import subprocess
@@ -779,7 +787,7 @@ def shell_command(alias: str) -> None:
         handle_cli_error(e)
 
 
-def config_command(alias: str, args: list[str]) -> None:
+def config_command(alias: str | None, args: list[str]) -> None:
     """Get or set configuration values for a pod.
 
     Usage:
@@ -789,6 +797,7 @@ def config_command(alias: str, args: list[str]) -> None:
     """
     try:
         pod_manager = get_pod_manager()
+        alias = select_pod_if_needed(alias, pod_manager)
         valid_keys = ["path"]
 
         if not args:
